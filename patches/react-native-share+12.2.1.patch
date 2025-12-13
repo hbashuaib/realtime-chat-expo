@@ -1,0 +1,18 @@
+diff --git a/node_modules/react-native-share/android/build.gradle b/node_modules/react-native-share/android/build.gradle
+index 844e782..fccb6ad 100644
+--- a/node_modules/react-native-share/android/build.gradle
++++ b/node_modules/react-native-share/android/build.gradle
+@@ -28,10 +28,10 @@ if (isNewArchitectureEnabled()) {
+ 
+ android {
+     namespace = "cl.json"
+-    compileSdkVersion safeExtGet('compileSdkVersion', 34)
++    compileSdkVersion 35
+     defaultConfig {
+-        minSdkVersion safeExtGet('minSdkVersion', 16)
+-        targetSdkVersion safeExtGet('targetSdkVersion', 34)
++        minSdkVersion 24
++        targetSdkVersion 35
+     }
+     lintOptions {
+         abortOnError false

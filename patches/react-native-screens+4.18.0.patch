@@ -1,0 +1,24 @@
+diff --git a/node_modules/react-native-screens/android/build.gradle b/node_modules/react-native-screens/android/build.gradle
+index 23446c6..164644d 100644
+--- a/node_modules/react-native-screens/android/build.gradle
++++ b/node_modules/react-native-screens/android/build.gradle
+@@ -113,7 +113,7 @@ def REACT_NATIVE_MINOR_VERSION = REACT_NATIVE_VERSION.startsWith("0.0.0-") ? 100
+ def IS_NEW_ARCHITECTURE_ENABLED = isNewArchitectureEnabled()
+ 
+ android {
+-    compileSdkVersion safeExtGet('compileSdkVersion', rnsDefaultCompileSdkVersion)
++    compileSdkVersion 35
+     namespace "com.swmansion.rnscreens"
+ 
+     // Used to override the NDK path/version on internal CI or by allowing
+@@ -126,8 +126,8 @@ android {
+     }
+ 
+     defaultConfig {
+-        minSdkVersion safeExtGet(['minSdkVersion', 'minSdk'], rnsDefaultMinSdkVersion)
+-        targetSdkVersion safeExtGet(['targetSdkVersion', 'targetSdk'], rnsDefaultTargetSdkVersion)
++        minSdkVersion 24
++        targetSdkVersion 35
+         versionCode 1
+         versionName "1.0"
+         buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", IS_NEW_ARCHITECTURE_ENABLED.toString()

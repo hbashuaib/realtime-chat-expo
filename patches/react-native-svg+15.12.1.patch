@@ -1,0 +1,25 @@
+diff --git a/node_modules/react-native-svg/android/build.gradle b/node_modules/react-native-svg/android/build.gradle
+index 6496bae..1767f57 100644
+--- a/node_modules/react-native-svg/android/build.gradle
++++ b/node_modules/react-native-svg/android/build.gradle
+@@ -85,7 +85,7 @@ def getFrescoVersion() {
+ def FRESCO_VERSION = getFrescoVersion()
+ 
+ android {
+-    compileSdkVersion safeExtGet('compileSdkVersion', 28)
++    compileSdkVersion 35
+     namespace "com.horcrux.svg"
+     def agpVersion = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION
+     if (agpVersion.tokenize('.')[0].toInteger() >= 8) {
+@@ -103,9 +103,9 @@ android {
+     }
+ 
+     defaultConfig {
+-        minSdkVersion safeExtGet('minSdkVersion', 16)
++        minSdkVersion 24
+         //noinspection OldTargetApi
+-        targetSdkVersion safeExtGet('targetSdkVersion', 28)
++        targetSdkVersion 35
+         buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+ 
+         consumerProguardFiles 'proguard-rules.pro'

@@ -1,0 +1,24 @@
+diff --git a/node_modules/react-native-worklets/android/build.gradle b/node_modules/react-native-worklets/android/build.gradle
+index 61c565b..b11489b 100644
+--- a/node_modules/react-native-worklets/android/build.gradle
++++ b/node_modules/react-native-worklets/android/build.gradle
+@@ -154,7 +154,7 @@ apply from: "./fix-prefab.gradle"
+ 
+ 
+ android {
+-    compileSdkVersion safeExtGet("compileSdkVersion", 34)
++    compileSdkVersion 35
+ 
+     namespace "com.swmansion.worklets"
+ 
+@@ -178,8 +178,8 @@ android {
+     }
+ 
+     defaultConfig {
+-        minSdkVersion safeExtGet("minSdkVersion", 23)
+-        targetSdkVersion safeExtGet("targetSdkVersion", 34)
++        minSdkVersion 24
++        targetSdkVersion 35
+         versionCode 1
+         versionName WORKLETS_VERSION
+ 
