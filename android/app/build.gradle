@@ -86,14 +86,17 @@ android {
     compileSdkVersion 35
 
     namespace 'com.anonymous.realtimechatexpo'
-    defaultConfig {   
-        applicationId 'com.anonymous.realtimechatexpo'
-        minSdkVersion 24
+    defaultConfig {
         targetSdkVersion 35
+        minSdkVersion 24
+
+        applicationId 'com.anonymous.realtimechatexpo'
+
         versionCode 1
         versionName "1.0.0"
 
-        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'
+    }\""
     }
     signingConfigs {
         debug {
