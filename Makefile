@@ -78,3 +78,15 @@ kill-metro:
 # adb -s R5CT603J3CP install -r app/build/outputs/apk/debug/app-debug.apk
 
 # Tomorrow, if you want to make sure Expo regenerates  with your custom SDK values, we’ll move those settings into . But for tonight, you’re safe to run  — it won’t undo your changes.
+
+# Git Commands:
+# git add .
+# git commit -m "Your commit message"
+# git remote add origin https://github.com/hbashuaib/realtime-chat-expo.git
+# git push -u origin master
+# git remote -v
+
+# Below make sure Gradle build and plugin are updated
+# git add android/app/build.gradle app.plugin.js Makefile .idea/caches/deviceStreaming.xml
+# git commit -m "Update Gradle build and plugin"
+# git push origin master

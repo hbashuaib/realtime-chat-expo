@@ -39,8 +39,8 @@ yarn-error.*
 app-example
 
 # generated native folders
-/ios
-/android
+# /ios
+# /android
 
 !android/gradlew
 !android/gradlew.bat

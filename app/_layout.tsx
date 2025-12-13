@@ -13,6 +13,8 @@ import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
 import { theme } from '@/src/core/theme';
 import useGlobal from '@/src/core/global';
 import '@/src/core/fontawesome';
+import InboundShareBridge from "@/src/components/InboundShareBridge";
+
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -61,6 +63,7 @@ export default function RootLayout() {
       <ThemeProvider value={navigationTheme}>
         <PaperProvider>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <InboundShareBridge />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" />
             <Stack.Screen name="SignIn" />

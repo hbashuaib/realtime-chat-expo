@@ -3,88 +3,110 @@ const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-function patchBuildGradle(content) {
-  let updated = content;
-
-  // 1) Remove any buildToolsVersion lines (prevents 29.0.2 warnings)
-  updated = updated.replace(/^\s*buildToolsVersion\s+.*\n/gm, '');
-
-  // 2) Force compileSdkVersion 35 (replace compileSdk or compileSdkVersion forms)
-  updated = updated.replace(
+function forceCompileSdk(content) {
+  // Replace both "compileSdk ..." and "compileSdkVersion ..."
+  // Works even if someone writes "compileSdk rootProject.ext.compileSdkVersion"
+  return content.replace(
     /^\s*compileSdk(?:Version)?\s+.*$/m,
     '    compileSdkVersion 35'
   );
+}
 
-  // 3) Ensure defaultConfig contains targetSdkVersion/minSdkVersion
-  updated = updated.replace(
+function stripBuildTools(content) {
+  // Remove any buildToolsVersion lines
+  return content.replace(/^\s*buildToolsVersion\s+.*\n/gm, '');
+}
+
+function normalizeDefaultConfigBlock(content) {
+  // Ensure defaultConfig has single numeric min/target sdk lines,
+  // and remove any rootProject.ext overrides that re-introduce API 29.
+  return content.replace(
     /defaultConfig\s*\{([\s\S]*?)\}/m,
     (match, inner) => {
-      // Replace target/min if present; otherwise inject them.
       let block = inner;
 
-      if (/minSdkVersion\s+\d+/.test(block)) {
-        block = block.replace(/minSdkVersion\s+\d+/, 'minSdkVersion 24');
-      } else {
-        block = `\n        minSdkVersion 24\n` + block;
+      // Remove any rootProject.ext based lines
+      block = block.replace(/^\s*minSdkVersion\s+rootProject\.ext\.minSdkVersion\s*$/gm, '');
+      block = block.replace(/^\s*targetSdkVersion\s+rootProject\.ext\.targetSdkVersion\s*$/gm, '');
+
+      // Normalize any existing min/target lines (numeric or not) to correct values
+      block = block.replace(/^\s*minSdkVersion\s+.*$/gm, '        minSdkVersion 24');
+      block = block.replace(/^\s*targetSdkVersion\s+.*$/gm, '        targetSdkVersion 35');
+
+      // If min/target lines are missing, inject them near top of the block
+      if (!/minSdkVersion\s+24/.test(block)) {
+        block = `        minSdkVersion 24\n` + block;
+      }
+      if (!/targetSdkVersion\s+35/.test(block)) {
+        block = `        targetSdkVersion 35\n` + block;
       }
 
-      if (/targetSdkVersion\s+\d+/.test(block)) {
-        block = block.replace(/targetSdkVersion\s+\d+/, 'targetSdkVersion 35');
-      } else {
-        block = `\n        targetSdkVersion 35\n` + block;
-      }
-
-      return `defaultConfig {${block}}`;
+      return `defaultConfig {\n${block}\n    }`;
     }
   );
+}
+
+function patchAppBuildGradle(content) {
+  let updated = content;
+
+  // 1) Remove buildToolsVersion lines
+  updated = stripBuildTools(updated);
+
+  // 2) Force compileSdkVersion 35
+  updated = forceCompileSdk(updated);
+
+  // 3) Normalize defaultConfig (min/target)
+  updated = normalizeDefaultConfigBlock(updated);
 
   return updated;
 }
 
 function patchRootBuildGradle(content) {
-  let updated = content;
-
-  // Remove explicit buildTools in root if present (rare, but safe)
-  updated = updated.replace(/^\s*buildToolsVersion\s+.*\n/gm, '');
-
-  return updated;
+  // Defensive: strip any buildToolsVersion lines in root build.gradle
+  return stripBuildTools(content);
 }
 
 module.exports = function withAndroidGradleFix(config) {
-  // Patch android/app/build.gradle
-  config = withDangerousMod(config, [
+  return withDangerousMod(config, [
     'android',
     async (cfg) => {
       const appGradlePath = path.join(cfg.modRequest.projectRoot, 'android', 'app', 'build.gradle');
       const rootGradlePath = path.join(cfg.modRequest.projectRoot, 'android', 'build.gradle');
 
-      // app/build.gradle
+      // Patch android/app/build.gradle
       if (fs.existsSync(appGradlePath)) {
         const src = fs.readFileSync(appGradlePath, 'utf8');
-        const patched = patchBuildGradle(src);
+        const patched = patchAppBuildGradle(src);
+
         if (src !== patched) {
           fs.writeFileSync(appGradlePath, patched);
-          console.log('[BashChat Plugin] Patched android/app/build.gradle (compileSdkVersion=35, targetSdkVersion=35, minSdkVersion=24, removed buildToolsVersion).');
+          console.log('[BashChat Plugin] Patched android/app/build.gradle: compileSdkVersion=35, minSdkVersion=24, targetSdkVersion=35, removed buildToolsVersion/rootProject.ext duplicates.');
+          // Optional debug: show first lines for sanity
+          const preview = patched.split('\n').slice(0, 50).join('\n');
+          console.log('[BashChat Plugin] app/build.gradle preview (first 50 lines):\n' + preview);
         } else {
           console.log('[BashChat Plugin] No changes needed in android/app/build.gradle.');
         }
+      } else {
+        console.log('[BashChat Plugin] android/app/build.gradle not found.');
       }
 
-      // android/build.gradle (defensive cleanup)
+      // Patch android/build.gradle (defensive cleanup)
       if (fs.existsSync(rootGradlePath)) {
         const rootSrc = fs.readFileSync(rootGradlePath, 'utf8');
         const rootPatched = patchRootBuildGradle(rootSrc);
+
         if (rootSrc !== rootPatched) {
           fs.writeFileSync(rootGradlePath, rootPatched);
-          console.log('[BashChat Plugin] Patched android/build.gradle (removed buildToolsVersion lines).');
+          console.log('[BashChat Plugin] Patched android/build.gradle: removed buildToolsVersion lines.');
         } else {
           console.log('[BashChat Plugin] No changes needed in android/build.gradle.');
         }
+      } else {
+        console.log('[BashChat Plugin] android/build.gradle not found.');
       }
 
       return cfg;
     },
   ]);
-
-  return config;
 };

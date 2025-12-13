@@ -24,7 +24,7 @@ const Divider = ({ color }) => (
   />
 );
 
-const HeaderMenu = ({ screen, selectedMessages }) => {
+const HeaderMenu = ({ screen, selectedMessages = [] }) => {
   const options = {
     Friends: ['New Group', 'Archived', 'Settings', 'About'],
     Requests: ['Refresh', 'Sort by Date', 'Help'],
