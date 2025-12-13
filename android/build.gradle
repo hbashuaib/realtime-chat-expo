@@ -20,5 +20,19 @@ allprojects {
   }
 }
 
+subprojects {
+  afterEvaluate { project ->
+    if (project.name.contains("react-native-share-menu")) {
+      project.android {
+        compileSdkVersion 35
+        defaultConfig {
+          targetSdkVersion 35
+          minSdkVersion 24
+        }
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"

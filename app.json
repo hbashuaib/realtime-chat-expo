@@ -103,7 +103,8 @@
           }
         }
       ],
-      "./app.plugin.js"
+      "./app.plugin.js",
+      "./plugins/withShareMenuFix.js"
     ],
     "experiments": {
       "typedRoutes": true,
