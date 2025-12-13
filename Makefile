@@ -74,3 +74,7 @@ kill-metro:
 
 # Next time te rebild:
 # eas build:dev --platform android
+
+# adb -s R5CT603J3CP install -r app/build/outputs/apk/debug/app-debug.apk
+
+# Tomorrow, if you want to make sure Expo regenerates  with your custom SDK values, we’ll move those settings into . But for tonight, you’re safe to run  — it won’t undo your changes.

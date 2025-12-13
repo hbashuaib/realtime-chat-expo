@@ -17,8 +17,58 @@
       "package": "com.anonymous.realtimechatexpo",
       "permissions": [
         "CAMERA",
+        "INTERNET",
+        "MODIFY_AUDIO_SETTINGS",
         "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "SYSTEM_ALERT_WINDOW",
+        "VIBRATE",
         "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": [
+            { "scheme": "realtimechatexpo" },
+            { "scheme": "exp+realtime-chat-expo" }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "text/plain" }]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "image/*" }]
+        },
+        {
+          "action": "SEND_MULTIPLE",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "image/*" }]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "audio/*" }]
+        },
+        {
+          "action": "SEND_MULTIPLE",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "audio/*" }]
+        },
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "video/*" }]
+        },
+        {
+          "action": "SEND_MULTIPLE",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "video/*" }]
+        }
       ]
     },
     "web": {
@@ -47,8 +97,10 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24,
+            "buildToolsVersion": "36.0.0"
           }
         }
       ]
@@ -65,3 +117,71 @@
     }
   }
 }
+
+// {
+//   "expo": {
+//     "name": "BashChat",
+//     "slug": "realtime-chat-expo",
+//     "version": "1.0.0",
+//     "orientation": "portrait",
+//     "icon": "./assets/images/icon.png",
+//     "scheme": "realtimechatexpo",
+//     "userInterfaceStyle": "automatic",
+//     "newArchEnabled": true,
+//     "ios": {
+//       "supportsTablet": true
+//     },
+//     "android": {
+//       "edgeToEdgeEnabled": true,
+//       "predictiveBackGestureEnabled": false,
+//       "package": "com.anonymous.realtimechatexpo",
+//       "permissions": [
+//         "CAMERA",
+//         "READ_EXTERNAL_STORAGE",
+//         "WRITE_EXTERNAL_STORAGE"
+//       ]
+//     },
+//     "web": {
+//       "output": "static",
+//       "favicon": "./assets/images/favicon.png"
+//     },
+//     "plugins": [
+//       "expo-router",
+//       [
+//         "expo-splash-screen",
+//         {
+//           "image": "./assets/images/splash-icon.png",
+//           "imageWidth": 200,
+//           "resizeMode": "contain",
+//           "backgroundColor": "#ffffff",
+//           "dark": {
+//             "backgroundColor": "#000000"
+//           }
+//         }
+//       ],
+//       "expo-secure-store",
+//       "expo-font",
+//       "expo-video",
+//       "expo-web-browser",
+//       [
+//         "expo-build-properties",
+//         {
+//           "android": {
+//             "compileSdkVersion": 34,
+//             "targetSdkVersion": 34
+//           }
+//         }
+//       ]
+//     ],
+//     "experiments": {
+//       "typedRoutes": true,
+//       "reactCompiler": true
+//     },
+//     "extra": {
+//       "router": {},
+//       "eas": {
+//         "projectId": "d67f534b-7c54-4654-a084-f03894ebb851"
+//       }
+//     }
+//   }
+// }

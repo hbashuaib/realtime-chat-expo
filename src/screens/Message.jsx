@@ -37,9 +37,6 @@ import { SectionList } from "react-native";
 import { format, isToday, isYesterday } from "date-fns";
 import * as FileSystem from "expo-file-system/legacy";
 import ShareMenu from "react-native-share-menu";
-import * as FileSystem from "expo-file-system";
-
-
 
 import { theme } from "@/src/core/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -740,11 +737,14 @@ export default function MessageScreen() {
       case "jpg":
       case "jpeg": return "image/jpeg";
       case "png": return "image/png";
+      case "gif": return "image/gif";
       case "webp": return "image/webp";
       case "mp4": return "video/mp4";
+      case "mov": return "video/quicktime";
       case "m4a": return "audio/m4a";
       case "aac": return "audio/aac";
       case "mp3": return "audio/mpeg";
+      case "wav": return "audio/wav";
       default: return undefined;
     }
   }
@@ -759,60 +759,73 @@ export default function MessageScreen() {
     }
   }
 
+
   // **Helper:** download remote URL to a local file, return file:// URI
+  // ✅ Download helper with MIME inference
   async function downloadToCache(remoteUri, fallbackName, expectedMime) {
     const filename = getFilenameFromUri(remoteUri, fallbackName);
-    const localPath = FileSystem.cacheDirectory + filename; // e.g., .../Cache/share.jpg
+    const localPath = FileSystem.cacheDirectory + filename;
     await FileSystem.downloadAsync(remoteUri, localPath);
-    // react-native-share expects a file:// prefix
+
     const fileUri = localPath.startsWith("file://") ? localPath : "file://" + localPath;
     const type = expectedMime || inferMimeFromUri(remoteUri);
     return { url: fileUri, type };
   }
 
+
   // Helper: normalize shared item into your messageSend payload
+  // ✅ Normalize shared item into BashChat payload
   async function toBashChatPayload(item) {
-    // item: {mimeType, data, extra, type} varies by OS/source
-    // Common cases:
-    // - Text: item.data (string)
-    // - Media: item.data (uri or array), item.mimeType (e.g., image/*, video/*, audio/*)
     const mime = (item?.mimeType || "").toLowerCase();
 
     // Text/emoji
-    if (mime === "text/plain" || typeof item?.data === "string" && !mime.startsWith("image/") && !mime.startsWith("video/") && !mime.startsWith("audio/")) {
+    if (
+      mime === "text/plain" ||
+      (typeof item?.data === "string" &&
+        !mime.startsWith("image/") &&
+        !mime.startsWith("video/") &&
+        !mime.startsWith("audio/"))
+    ) {
       return { kind: "text", text: String(item.data || "") };
     }
 
-    // Single media URI (Android often provides content:// or file://)
     const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
     if (typeof uri !== "string" || uri.length === 0) {
       return { kind: "text", text: "[Unsupported share payload]" };
     }
 
-    // Extract filename fallback
     const filename = getFilenameFromUri(uri, "shared");
 
-    // Convert to base64 (best-effort). Expo FileSystem reads file://; content:// may need copy.
     let base64 = null;
     try {
-      // Attempt to read directly
-      base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
     } catch (e) {
-      // Fallback: copy to cache then read
       try {
         const cachePath = FileSystem.cacheDirectory + filename;
         await FileSystem.copyAsync({ from: uri, to: cachePath });
-        base64 = await FileSystem.readAsStringAsync(cachePath, { encoding: FileSystem.EncodingType.Base64 });
+        base64 = await FileSystem.readAsStringAsync(cachePath, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
       } catch (e2) {
         console.log("[Share] Failed to read shared URI:", e, e2);
       }
     }
 
-    // Map by mime type to your messageSend fields
+    // ✅ Error handling: fallback if base64 is null
+    if (!base64) {
+      return { kind: "text", text: "[Failed to load media]" };
+    }
+
+    // ✅ Map by mime type
     if (mime.startsWith("image/")) {
       return {
         kind: "image",
-        payload: { base64, filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg` },
+        payload: {
+          base64,
+          filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg`,
+        },
       };
     }
     if (mime.startsWith("video/")) {
@@ -821,42 +834,46 @@ export default function MessageScreen() {
         payload: {
           video: base64,
           video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`,
-          // Optional extras if provided by source app
           video_url: uri,
-          video_thumb_url: null,
-          video_duration: null,
         },
       };
     }
     if (mime.startsWith("audio/")) {
+      const audioExt = filename.split(".").pop().toLowerCase();
+      const safeName = ["m4a", "aac", "mp3", "wav"].includes(audioExt)
+        ? filename
+        : `${filename}.m4a`;
       return {
         kind: "voice",
         payload: {
           base64,
-          filename: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
-          voice: uri, // for immediate local playback
+          filename: safeName,
+          voice: uri,
         },
       };
     }
 
-    // Default fallback to text
     return { kind: "text", text: uri };
   }
 
 
   // **Helper:** build payload for a single message (async because of downloads)
+  // ✅ Build payload for a single message
   async function getPayloadForSingleAsync(m) {
     if (m.text) {
-      return { message: m.text }; // text/emoji
+      return { message: m.text };
     }
     if (m.image) {
-      return await downloadToCache(m.image, "share.jpg", "image/jpeg");
+      const mime = inferMimeFromUri(m.image) || "image/jpeg";
+      return await downloadToCache(m.image, "share.jpg", mime);
     }
     if (m.voice) {
-      return await downloadToCache(m.voice, "share.m4a", "audio/m4a");
+      const mime = inferMimeFromUri(m.voice) || "audio/m4a";
+      return await downloadToCache(m.voice, "share.m4a", mime);
     }
     if (m.video_url) {
-      return await downloadToCache(m.video_url, "share.mp4", "video/mp4");
+      const mime = inferMimeFromUri(m.video_url) || "video/mp4";
+      return await downloadToCache(m.video_url, "share.mp4", mime);
     }
     return { message: "[Unsupported message type]" };
   }
@@ -867,22 +884,23 @@ export default function MessageScreen() {
     const ids = selectedMessages;
     if (!Array.isArray(ids) || ids.length === 0) return;
 
-    const toShare = (messagesList || []).filter(m => ids.includes(m.id));
+    const toShare = (messagesList || []).filter((m) => ids.includes(m.id));
     if (toShare.length === 0) return;
 
     try {
       if (toShare.length === 1) {
-        const payload = await getPayloadForSingleAsync(toShare[0]); // note: await
-        await Share.open(payload);
+        const payload = await getPayloadForSingleAsync(toShare[0]);
+        await Share.open(payload); // ✅ Correct MIME-aware payloads
       } else {
-        // Multiple selection → fallback to readable text summary
-        const shareText = toShare.map(m => {
-          if (m.text) return m.text;
-          if (m.image) return "[Image]";
-          if (m.voice) return "[Voice]";
-          if (m.video_url) return "[Video]";
-          return "[Unsupported]";
-        }).join("\n\n");
+        const shareText = toShare
+          .map((m) => {
+            if (m.text) return m.text;
+            if (m.image) return "[Image]";
+            if (m.voice) return "[Voice]";
+            if (m.video_url) return "[Video]";
+            return "[Unsupported]";
+          })
+          .join("\n\n");
 
         await Share.open({ message: shareText });
       }
@@ -891,7 +909,7 @@ export default function MessageScreen() {
     }
 
     clearSelection();
-  }  
+  }
   
   const loadMoreMessages = useGlobal((state) => state.loadMoreMessages);
 
