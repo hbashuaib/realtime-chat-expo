@@ -40,10 +40,10 @@ import ShareMenu from "react-native-share-menu";
 
 import { theme } from "@/src/core/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation, router } from "expo-router";
 import HeaderMenu from '@/src/components/HeaderMenu';
 import ChatHeader from "@/src/components/ChatHeader";
-import { router } from "expo-router"; // ✅ use router instead of useNavigation
+//import { router } from "expo-router"; // ✅ use router instead of useNavigation
 
 // WhatsApp-like compact time (e.g., 14:07)
 function formatTimeShort(dateString) {
@@ -728,7 +728,13 @@ export default function MessageScreen() {
   }
 
   const messagesList = useGlobal((state) => state.messagesList);  
-    
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    console.log("[Message] Screen mounted, params:", params);
+  }, [params]);
+
+
   // ✅ Share Selection
   // **Helper:** infer MIME from URI
   function inferMimeFromUri(uri) {

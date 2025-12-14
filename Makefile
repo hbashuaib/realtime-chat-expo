@@ -90,3 +90,15 @@ kill-metro:
 # git add android/app/build.gradle app.plugin.js Makefile .idea/caches/deviceStreaming.xml
 # git commit -m "Update Gradle build and plugin"
 # git push origin master
+
+
+# expo prebuild --clean
+# cd android
+# .\gradlew clean
+# .\gradlew assembleDebug
+
+# Install APK on both devices:
+# adb -s R5CT603J3CP install -r .\android\app\build\outputs\apk\debug\app-debug.apk
+
+# Install APK on emulator:
+# adb -s emulator-5554 install -r .\android\app\build\outputs\apk\debug\app-debug.apk

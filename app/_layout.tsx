@@ -1,5 +1,5 @@
 // app/_layout.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import 'react-native-reanimated';
@@ -13,7 +13,7 @@ import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
 import { theme } from '@/src/core/theme';
 import useGlobal from '@/src/core/global';
 import '@/src/core/fontawesome';
-import InboundShareBridge from "@/src/components/InboundShareBridge";
+import InboundShareBridge from "@/src/bridges/InboundShareBridge";
 
 
 export const unstable_settings = {
@@ -58,12 +58,33 @@ export default function RootLayout() {
     },
   };
 
+  // v5 inbound share handler
+  const handleInboundShare = useCallback((payload: null | {
+    kind: 'text' | 'uri' | 'multiple';
+    text?: string;
+    uri?: string;
+    uris?: string[];
+    mimeType?: string;
+  }) => {
+    if (!payload) return;
+
+    // TODO: route into BashChat state/actions
+    // Example: queue when no chat is active, or open composer with prefilled content
+    console.log('[Inbound Share] Routed:', payload);
+
+    // If you have a global store:
+    // const enqueueInbound = useGlobal.getState().enqueueInbound;
+    // enqueueInbound(payload);
+  }, []);
+
+
+
   return (
     <MenuProvider>
       <ThemeProvider value={navigationTheme}>
         <PaperProvider>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          <InboundShareBridge />
+          <InboundShareBridge onShare={handleInboundShare} />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" />
             <Stack.Screen name="SignIn" />
