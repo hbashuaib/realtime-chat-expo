@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.anonymous.realtimechatexpo">
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
@@ -29,47 +29,42 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="realtimechatexpo"/>
       </intent-filter>
-      <intent-filter data-generated="true">
-        <action android:name="android.intent.action.VIEW"/>
-        <data android:scheme="realtimechatexpo"/>
-        <data android:scheme="exp+realtime-chat-expo"/>
-        <category android:name="android.intent.category.DEFAULT"/>
-        <category android:name="android.intent.category.BROWSABLE"/>
-      </intent-filter>
-      <intent-filter data-generated="true">
+    </activity>
+    <activity android:name="com.meedan.sharemenu.ShareMenuActivity" android:exported="true" android:launchMode="singleTop">
+      <intent-filter>
         <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="text/plain"/>
-        <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
-      <intent-filter data-generated="true">
+      <intent-filter>
         <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
-        <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
-      <intent-filter data-generated="true">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="audio/*"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="video/*"/>
+      </intent-filter>
+      <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
-        <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
-      <intent-filter data-generated="true">
-        <action android:name="android.intent.action.SEND"/>
-        <data android:mimeType="audio/*"/>
-        <category android:name="android.intent.category.DEFAULT"/>
-      </intent-filter>
-      <intent-filter data-generated="true">
+      <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="audio/*"/>
-        <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
-      <intent-filter data-generated="true">
-        <action android:name="android.intent.action.SEND"/>
-        <data android:mimeType="video/*"/>
-        <category android:name="android.intent.category.DEFAULT"/>
-      </intent-filter>
-      <intent-filter data-generated="true">
+      <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
-        <data android:mimeType="video/*"/>
         <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="video/*"/>
       </intent-filter>
     </activity>
   </application>

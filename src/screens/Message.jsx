@@ -38,8 +38,7 @@ import useGlobal from "../core/global";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import ChatHeader from "@/src/components/ChatHeader";
 import { theme } from "@/src/core/theme";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
-//import { router } from "expo-router"; // ✅ use router instead of useNavigation
+import { router, useLocalSearchParams } from "expo-router";
 
 // WhatsApp-like compact time (e.g., 14:07)
 function formatTimeShort(dateString) {
@@ -648,7 +647,7 @@ function groupMessagesByDay(messages) {
 
 // --------------------------------------- SCREEN --------------------------------------
 export default function MessageScreen() {
-  const navigation = useNavigation();  
+  // const navigation = useNavigation();  
   const { id: connectionIdRaw, friend: friendParam } = useLocalSearchParams();
   const connectionId = Number(connectionIdRaw); // ✅ force integer
 
@@ -1050,11 +1049,11 @@ export default function MessageScreen() {
 
 
   // Debug nav state (optional)
-  useEffect(() => {
-    try {
-      console.log("navigation state:", navigation?.getState?.());
-    } catch {}
-  }, []);
+  // useEffect(() => {
+  //   try {
+  //     console.log("navigation state:", navigation?.getState?.());
+  //   } catch {}
+  // }, []);
  
 
   // Request messages when connectionId changes and socket ready

@@ -1,5 +1,5 @@
 // plugins/sharemenu/ShareMenuActivity.java
-package com.reactnativesharemenu;
+package com.meedan.sharemenu;
 
 import com.anonymous.realtimechatexpo.MainActivity; // <-- ensure correct package
 

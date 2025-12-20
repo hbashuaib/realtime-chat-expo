@@ -37,7 +37,7 @@ function ensureImportsAtTop(src) {
 
   out = out.replace(
     /import\s+com\.meedan\.sharemenu\.ShareMenuModule/g,
-    "import com.reactnativesharemenu.ShareMenuModule"
+    "import com.meedan.sharemenu.ShareMenuModule"
   );
 
   const pkgMatch = out.match(/^package\s+[^\n]+\n/);
@@ -109,14 +109,14 @@ function withShareMenuActivity(config) {
     // Add ShareMenuActivity if missing
     app.activity = app.activity || [];
     const exists = app.activity.some(
-      (a) => a.$?.["android:name"] === "com.reactnativesharemenu.ShareMenuActivity"
+      (a) => a.$?.["android:name"] === "com.meedan.sharemenu.ShareMenuActivity"
     );
     if (!exists) {
       app.activity.push({
         $: {
-          "android:name": "com.reactnativesharemenu.ShareMenuActivity",
+          "android:name": "com.meedan.sharemenu.ShareMenuActivity",
           "android:exported": "true",
-          "android:launchMode": "singleTask",
+          "android:launchMode": "singleTop",
         },
         "intent-filter": [
           {
@@ -218,7 +218,8 @@ function withShareMenuJava(config) {
       "main",
       "java",
       "com",
-      "reactnativesharemenu"
+      "meedan",
+      "sharemenu"
     );
     const destFile = path.join(javaSrcDir, "ShareMenuActivity.java");
 
@@ -226,29 +227,30 @@ function withShareMenuJava(config) {
 
     // ReactActivity-based proxy forwards intent to RN
     const contents = `
-package com.reactnativesharemenu;
+package com.meedan.sharemenu;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import com.facebook.react.ReactActivity;
 
-public class ShareMenuActivity extends ReactActivity {
+import com.anonymous.realtimechatexpo.MainActivity;
+
+
+public class ShareMenuActivity extends Activity {
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    setIntent(getIntent());
-  }
 
-  @Override
-  protected String getMainComponentName() {
-    return "main";
-  }
+    Intent main = new Intent(this, MainActivity.class);
+    main.setAction(getIntent().getAction());
+    main.setType(getIntent().getType());
+    main.setData(getIntent().getData());
+    main.putExtras(getIntent());
+    main.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-  @Override
-  public void onNewIntent(Intent intent) {
-    super.onNewIntent(intent);
-    setIntent(intent);
+    startActivity(main);
+    finish();
   }
 }
 `;

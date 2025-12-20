@@ -199,4 +199,32 @@ kill-metro:
 # • 	Full → guarantees a fresh environment when caches/locks are corrupted.
 
 
+# 🛠 Git update workflow (step‑by‑step)
+# 1- Make sure you’re on master
+# git branch
 
+# - Confirm the * is next to master.
+# - If not:
+# git checkout master
+
+# 2- Stage your changes
+# git add .
+
+# - This stages all modified and new files.
+# - If you want to be selective:
+# git add path/to/file1 path/to/file2
+
+# 3- Check what’s staged
+# git status
+
+# - Verify that the files you just changed (e.g., Makefile, plugins/…) are listed under “Changes to be committed.”
+
+# 4- Commit your changes
+# git commit -m "Describe your changes here"
+
+# - Use a clear message so you know what this commit represents.
+# 5- Push to remote repository/master
+# git push origin master
+
+# daily-push:
+# git add . && git commit -m "Daily: publish latest working state" && git push origin master

@@ -1,5 +1,7 @@
 package com.anonymous.realtimechatexpo
 import expo.modules.splashscreen.SplashScreenManager
+import android.content.Intent
+import android.util.Log
 
 import android.os.Build
 import android.os.Bundle
