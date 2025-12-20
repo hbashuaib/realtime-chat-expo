@@ -1,13 +1,13 @@
 // src/components/ChatHeader.jsx
-import React, { memo } from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import HeaderMenu from "@/src/components/HeaderMenu";
-import FriendTitle from "@/src/components/FriendTitle";
-import { useNavigation } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import FriendTitle from "@/src/components/FriendTitle";
+import HeaderMenu from "@/src/components/HeaderMenu";
 import { theme } from "@/src/core/theme";
+import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
+import { useNavigation } from "expo-router";
+import React, { memo } from "react";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChatHeaderBase({ 
   friend, 

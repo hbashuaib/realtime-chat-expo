@@ -1,48 +1,44 @@
 // src/screens/Message.jsx
-import React, { memo, useMemo  } from "react";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
+import { format, isToday, isYesterday } from "date-fns";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView, 
-  LayoutAnimation,
-  FlatList,
-  Keyboard,
-  Platform,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  StyleSheet,
-  Dimensions,
-  StatusBar,
   Animated,
+  Dimensions,
   Easing,
   Image,
   ImageBackground,
-  Alert,  
+  Keyboard,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Platform,
+  SectionList,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Share from "react-native-share";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import Thumbnail from "../common/Thumbnail";
-import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { Audio } from "expo-av";
-import bg from "../assets/images/chat-background.png";
-import useGlobal from "../core/global";
-import VoicePlayer from "../components/VoicePlayer";
-import VideoPlayer from "../components/VideoPlayer";
-import WaveformView from "../components/WaveformView";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
-import EmojiPicker from "../components/EmojiPicker";
-import { SectionList } from "react-native";
-import { format, isToday, isYesterday } from "date-fns";
-import * as FileSystem from "expo-file-system/legacy";
 import ShareMenu from "react-native-share-menu";
+import bg from "../assets/images/chat-background.png";
+import Thumbnail from "../common/Thumbnail";
+import EmojiPicker from "../components/EmojiPicker";
+import VideoPlayer from "../components/VideoPlayer";
+import VoicePlayer from "../components/VoicePlayer";
+import WaveformView from "../components/WaveformView";
+import useGlobal from "../core/global";
 
-import { theme } from "@/src/core/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useLocalSearchParams, useNavigation, router } from "expo-router";
-import HeaderMenu from '@/src/components/HeaderMenu';
 import ChatHeader from "@/src/components/ChatHeader";
+import { theme } from "@/src/core/theme";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 //import { router } from "expo-router"; // ✅ use router instead of useNavigation
 
 // WhatsApp-like compact time (e.g., 14:07)
@@ -728,12 +724,13 @@ export default function MessageScreen() {
   }
 
   const messagesList = useGlobal((state) => state.messagesList);  
+  const addMessage = useGlobal((state) => state.addMessage);
   const params = useLocalSearchParams();
 
   useEffect(() => {
     console.log("[Message] Screen mounted, params:", params);
-  }, [params]);
-
+  }, [params]);  
+  
 
   // ✅ Share Selection
   // **Helper:** infer MIME from URI
@@ -771,12 +768,20 @@ export default function MessageScreen() {
   async function downloadToCache(remoteUri, fallbackName, expectedMime) {
     const filename = getFilenameFromUri(remoteUri, fallbackName);
     const localPath = FileSystem.cacheDirectory + filename;
-    await FileSystem.downloadAsync(remoteUri, localPath);
 
+    // Create a File handle for the remote URL
+    const remoteFile = new File(remoteUri);
+    const destFile = new File(localPath);
+
+    // Download/copy into cache
+    await remoteFile.download(destFile);
+
+    // Build return object
     const fileUri = localPath.startsWith("file://") ? localPath : "file://" + localPath;
     const type = expectedMime || inferMimeFromUri(remoteUri);
     return { url: fileUri, type };
   }
+
 
 
   // Helper: normalize shared item into your messageSend payload
@@ -804,20 +809,22 @@ export default function MessageScreen() {
 
     let base64 = null;
     try {
-      base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      // Always copy to cache to normalize content:// into file://
+      const cachePath = FileSystem.cacheDirectory + filename;
+
+      // Create File objects
+      const sourceFile = new File(uri);
+      const destFile = new File(cachePath);
+
+      // Copy into cache
+      await sourceFile.copy(destFile);
+
+      // Read as text/base64
+      base64 = await destFile.read({ encoding: "base64" });
     } catch (e) {
-      try {
-        const cachePath = FileSystem.cacheDirectory + filename;
-        await FileSystem.copyAsync({ from: uri, to: cachePath });
-        base64 = await FileSystem.readAsStringAsync(cachePath, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } catch (e2) {
-        console.log("[Share] Failed to read shared URI:", e, e2);
-      }
+      console.log("[Share] Failed to load shared URI:", e);
     }
+
 
     // ✅ Error handling: fallback if base64 is null
     if (!base64) {
@@ -1102,18 +1109,48 @@ export default function MessageScreen() {
       try {
         console.log("[ShareMenu] initial:", item);
         const normalized = await toBashChatPayload(item);
-        if (!connectionId) return; // require an active chat
-        if (normalized.kind === "text") {
-          const text = (normalized.text || "").trim();
-          if (text.length > 0) messageSend(connectionId, text);
+
+        // Navigate to Friends tab
+        //router.replace("/Friends");
+
+        // If connectionId is ready, send immediately
+        if (connectionId) {
+          if (normalized.kind === "text") {
+            const text = (normalized.text || "").trim();
+            if (text.length > 0) messageSend(connectionId, text);
+          } else {
+            messageSend(connectionId, "", normalized.payload);
+          }
         } else {
-          messageSend(connectionId, "", normalized.payload);
+          // Optionally: stash payload in global state until connectionId is set
+          router.replace("/(tabs)/Friends");
+          addMessage(normalized);
         }
       } catch (e) {
-        console.log("[ShareMenu] initial error:", e);
+        console.log("[ShareMenu] initial error:", e, "item:", item);
       }
     });
   }, [connectionId, messageSend]);
+
+
+  // useEffect(() => {
+  //   ShareMenu.getInitialShare(async (item) => {
+  //     if (!item) return;
+  //     try {
+  //       console.log("[ShareMenu] initial:", item);
+  //       const normalized = await toBashChatPayload(item);
+  //       if (!connectionId) return; // require an active chat
+  //       if (normalized.kind === "text") {
+  //         const text = (normalized.text || "").trim();
+  //         if (text.length > 0) messageSend(connectionId, text);
+  //       } else {
+  //         messageSend(connectionId, "", normalized.payload);
+  //       }
+  //     } catch (e) {
+  //       console.log("[ShareMenu] initial error:", e);
+  //     }
+  //   });
+  // }, [connectionId, messageSend]);
 
 
   // Inbound share: while app is running / coming from background
@@ -1123,19 +1160,49 @@ export default function MessageScreen() {
       try {
         console.log("[ShareMenu] new:", item);
         const normalized = await toBashChatPayload(item);
-        if (!connectionId) return;
-        if (normalized.kind === "text") {
-          const text = (normalized.text || "").trim();
-          if (text.length > 0) messageSend(connectionId, text);
+
+        // Navigate to Friends tab
+        //router.replace("/Friends");
+
+        if (connectionId) {
+          if (normalized.kind === "text") {
+            const text = (normalized.text || "").trim();
+            if (text.length > 0) messageSend(connectionId, text);
+          } else {
+            messageSend(connectionId, "", normalized.payload);
+          }
         } else {
-          messageSend(connectionId, "", normalized.payload);
+          router.replace("/(tabs)/Friends");
+          addMessage(normalized);
         }
       } catch (e) {
-        console.log("[ShareMenu] new error:", e);
+        console.log("[ShareMenu] initial error:", e, "item:", item);
       }
     });
     return () => unsubscribe && unsubscribe.remove && unsubscribe.remove();
   }, [connectionId, messageSend]);
+
+
+
+  // useEffect(() => {
+  //   const unsubscribe = ShareMenu.addNewShareListener(async (item) => {
+  //     if (!item) return;
+  //     try {
+  //       console.log("[ShareMenu] new:", item);
+  //       const normalized = await toBashChatPayload(item);
+  //       if (!connectionId) return;
+  //       if (normalized.kind === "text") {
+  //         const text = (normalized.text || "").trim();
+  //         if (text.length > 0) messageSend(connectionId, text);
+  //       } else {
+  //         messageSend(connectionId, "", normalized.payload);
+  //       }
+  //     } catch (e) {
+  //       console.log("[ShareMenu] new error:", e);
+  //     }
+  //   });
+  //   return () => unsubscribe && unsubscribe.remove && unsubscribe.remove();
+  // }, [connectionId, messageSend]);
 
 
   // Voice Recording

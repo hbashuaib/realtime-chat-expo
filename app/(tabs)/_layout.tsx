@@ -1,21 +1,21 @@
 // app/(tabs)/_layout.tsx
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import { Tabs, router } from 'expo-router';
 import React, { useEffect } from 'react';
 import { TouchableOpacity, View } from 'react-native';
-import { Tabs, router } from 'expo-router';
-import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { useColorScheme } from '@/hooks/use-color-scheme'; // ✅ normalized hook
 
 import Thumbnail from '@/src/common/Thumbnail';
-import HeaderMenu from '@/src/components/HeaderMenu';
 import FloatingEmojiButton from '@/src/components/FloatingEmojiButton';
+import HeaderMenu from '@/src/components/HeaderMenu';
 import useGlobal from '@/src/core/global';
 import { theme } from '@/src/core/theme';
 
-import '@/src/core/fontawesome';
 import Title from '@/src/common/Title';
+import '@/src/core/fontawesome';
 
 export default function TabsLayout() {
   const user = useGlobal((s) => s.user);
@@ -109,7 +109,7 @@ export default function TabsLayout() {
           },
         })}
       >
-        <Tabs.Screen name="index" options={{ href: null }} />
+        {/* <Tabs.Screen name="index" options={{ href: null }} /> */}
         <Tabs.Screen name="Friends" options={{ title: 'Friends' }} />
         <Tabs.Screen name="Requests" options={{ title: 'Requests' }} />
         <Tabs.Screen name="Profile" options={{ title: 'Profile' }} />

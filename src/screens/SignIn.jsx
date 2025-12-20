@@ -1,25 +1,25 @@
 // app/SignIn.jsx
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useState } from "react";
 import {
-  Text,
-  View,
-  TouchableWithoutFeedback,
   Keyboard,
   KeyboardAvoidingView,
+  Text,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { router } from "expo-router"; // ✅ Import router
 
-import Title from "../common/Title";
-import Input from "../common/Input";
 import Button from "../common/Button";
+import Input from "../common/Input";
+import Title from "../common/Title";
 import api from "../core/api";
-import utils from "../core/utils";
 import useGlobal from "../core/global";
+import utils from "../core/utils";
 
-import { theme } from "@/src/core/theme";          // ✅ named import
 import { useColorScheme } from "@/hooks/use-color-scheme"; // ✅ hook
+import { theme } from "@/src/core/theme"; // ✅ named import
 
 function SignInScreen() {
   const [username, setUsername] = useState("");
@@ -66,7 +66,7 @@ function SignInScreen() {
         login(credentials, response.data.user, response.data.tokens);
 
         // ✅ Navigate to tabs
-        router.replace("/(tabs)");
+        router.replace("/(tabs)/Friends");
       })
       .catch((error) => {
         console.log(

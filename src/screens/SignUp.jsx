@@ -1,24 +1,24 @@
 // app/SignUp.jsx
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useState } from "react";
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Text,
   TouchableWithoutFeedback,
   View,
-  Keyboard,
-  KeyboardAvoidingView,
 } from "react-native";
-import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { router } from "expo-router"; // ✅ Import router
 
-import Input from "../common/Input";
 import Button from "../common/Button";
+import Input from "../common/Input";
 import api from "../core/api";
-import utils from "../core/utils";
 import useGlobal from "../core/global";
+import utils from "../core/utils";
 
-import { theme } from "@/src/core/theme";          // ✅ named import
 import { useColorScheme } from "@/hooks/use-color-scheme"; // ✅ hook
+import { theme } from "@/src/core/theme"; // ✅ named import
 
 function SignUpScreen() {
   const [username, setUsername] = useState("");
@@ -81,7 +81,7 @@ function SignUpScreen() {
         login(credentials, response.data.user, response.data.tokens);
 
         // ✅ After signup, go straight to tabs
-        router.replace("/(tabs)");
+        router.replace("/(tabs)/Friends");
       })
       .catch((error) => {
         console.log(

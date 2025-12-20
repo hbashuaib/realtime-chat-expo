@@ -1,9 +1,8 @@
 // src/core/global.js
 import { create } from 'zustand'
-import secure from './secure'
 import api, { ADDRESS } from './api'
+import secure from './secure'
 import utils from './utils'
-import { useReducer } from 'react'
 
 //---------------------------------------
 //    Socket Receive Message Hundlers
@@ -575,6 +574,19 @@ const useGlobal = create((set, get) => ({
             fromConnectionId,
             toConnectionId,
             messageIds
+        }));
+    },
+
+    // Add a message locally (used for inbound shares)
+    addMessage: (msg) => {
+        set((state) => ({
+            messagesList: [
+                ...state.messagesList,
+                {
+                    id: Date.now(), // generate a local id (replace with UUID if you prefer)
+                    ...msg
+                }
+            ]
         }));
     },
 

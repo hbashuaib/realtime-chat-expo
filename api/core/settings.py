@@ -30,7 +30,7 @@ ALLOWED_HOSTS = [
     'localhost', 
     '10.0.2.2', 
     '127.0.0.1',
-    '192.168.8.193',
+    '192.168.8.201',
 ]
 
 
@@ -42,7 +42,7 @@ REST_FRAMEWORK = {
     )
 }
 
-SITE_URL = "http://192.168.8.193:8000"
+SITE_URL = "http://192.168.8.201:8000"
 
 # Thumbnail Uploads
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -66,8 +66,8 @@ CHANNEL_LAYERS = {
 # CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",           # Expo dev server - Web preview
-    "http://192.168.8.193:19000",       # Expo Go on physical device
-    "http://192.168.8.193:8081",        # Metro bundler
+    "http://192.168.8.201:19000",       # Expo Go on physical device
+    "http://192.168.8.201:8081",        # Metro bundler
     "http://10.0.2.2:19006",
     # r"^http://192\.168\.8\.\d{1,3}(:\d+)?$", # Android emulator
 ]

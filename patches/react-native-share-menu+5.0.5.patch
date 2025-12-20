@@ -3,7 +3,7 @@ diff --git a/node_modules/react-native-share-menu/android/build.gradle b/node_mo
 +++ b/node_modules/react-native-share-menu/android/build.gradle
 @@ -1,16 +1,17 @@
  apply plugin: 'com.android.library'
- 
+
  android {
 -    compileSdkVersion 29
 -    buildToolsVersion "29.0.2"

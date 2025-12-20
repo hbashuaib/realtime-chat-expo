@@ -1,17 +1,17 @@
 // src/screens/Search.jsx
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Text, View, TextInput, FlatList, TouchableOpacity } from "react-native";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { useEffect, useState } from "react";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
+import { FlatList, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import Cell from "../common/Cell";
 import Empty from "../common/Empty";
 import Thumbnail from "../common/Thumbnail";
 import useGlobal from "../core/global";
-import Cell from "../common/Cell";
 
-import { theme } from "@/src/core/theme";          // ✅ named import
 import { useColorScheme } from "@/hooks/use-color-scheme"; // ✅ hook
+import { theme } from "@/src/core/theme"; // ✅ named import
 
 function SearchButton({ user }) {
   const requestConnect = useGlobal((state) => state.requestConnect);
@@ -134,7 +134,7 @@ function SearchScreen() {
       >
         {/* Back Arrow */}
         <TouchableOpacity
-          onPress={() => router.replace("/Friends")}
+          onPress={() => router.replace("/(tabs)/Friends")}
           style={{ marginRight: currentTheme.spacing.sm }}
         >
           <FontAwesomeIcon

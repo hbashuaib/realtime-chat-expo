@@ -1,8 +1,8 @@
 // src/core/api.js
-import axios from 'axios'
-import { Platform } from 'react-native'
+import axios from 'axios';
+import { Platform } from 'react-native';
 
-const LOCAL_IP = '192.168.8.193'; // your LAN IP
+const LOCAL_IP = '192.168.8.201'; // your LAN IP
 
 // crude check: emulator devices often have "sdk" or "emulator" in model name
 function isEmulator() {

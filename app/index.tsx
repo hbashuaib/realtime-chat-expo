@@ -1,6 +1,6 @@
 // app/index.tsx
-import { Redirect } from 'expo-router';
 import useGlobal from '@/src/core/global';
+import { Redirect } from 'expo-router';
 
 export default function Index() {
   const initialized = useGlobal((s) => s.initialized);
@@ -9,6 +9,6 @@ export default function Index() {
   if (!initialized) return <Redirect href="/Splash" />;
   if (!authenticated) return <Redirect href="/SignIn" />;
 
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/(tabs)/Friends" />; // Changed from <Redirect href="/(tabs)" />
 }
 

@@ -1,16 +1,16 @@
 // src/components/HeaderMenu.jsx
-import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { Menu, MenuOptions, MenuOption, MenuTrigger, renderers } from 'react-native-popup-menu';
-import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
-import Share from "react-native-share"
-import * as FileSystem from "expo-file-system/legacy";
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import * as FileSystem from "expo-file-system";
+import React, { useEffect, useRef } from 'react';
+import { Animated, Text, TouchableOpacity, View } from 'react-native';
+import { Menu, MenuOption, MenuOptions, MenuTrigger, renderers } from 'react-native-popup-menu';
+import Share from "react-native-share";
 
-import { theme } from '@/src/core/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { router } from 'expo-router';
 import useGlobal from "@/src/core/global";
+import { theme } from '@/src/core/theme';
+import { router } from 'expo-router';
 
 const { Popover, SlideInMenu } = renderers;
 

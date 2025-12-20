@@ -1,13 +1,13 @@
 // src/screens/Splash.jsx
+import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { StatusBar } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import Title from "@/src/common/Title";
 import useGlobal from "@/src/core/global";
 import { theme } from "@/src/core/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function SplashScreen() {
   const initialized = useGlobal((state) => state.initialized);
@@ -20,7 +20,7 @@ export default function SplashScreen() {
   useEffect(() => {
     if (initialized) {
       if (authenticated) {
-        router.replace("/(tabs)");
+        router.replace("/(tabs)/Friends");
       } else {
         router.replace("/SignIn");
       }

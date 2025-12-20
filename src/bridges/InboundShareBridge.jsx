@@ -1,82 +1,154 @@
 // src/bridges/InboundShareBridge.jsx
-// InboundShareBridge.jsx (v5-compatible)
-import React, { useEffect, useRef } from "react";
-import { NativeModules, NativeEventEmitter } from "react-native";
+import useGlobal from "@/src/core/global";
+import * as FileSystem from "expo-file-system";
+import * as FileSystemLegacy from "expo-file-system/legacy"; // use legacy for copy/read
+import { useEffect, useRef } from "react";
+import { NativeEventEmitter, NativeModules } from "react-native";
 
 const { ShareMenu } = NativeModules;
 const shareMenuEmitter = new NativeEventEmitter(ShareMenu);
 
+// 👇 Define props type (JSX, so just inline)
 export default function InboundShareBridge({ onShare }) {
   const handledInitialRef = useRef(false);
-
-  console.log("[InboundShareBridge] Mounted, attaching listeners");
+  const addMessage = useGlobal((s) => s.addMessage);
 
   useEffect(() => {
-    // Cold-start: v5 callback API
+    // Cold start: app opened via share
     try {
-      ShareMenu.getSharedText((item) => {
+      ShareMenu.getSharedText(async (item) => {
         if (handledInitialRef.current) return;
         handledInitialRef.current = true;
-
         if (item) {
-          // item: { mimeType, data } or an array for SEND_MULTIPLE
-          logShare("[Inbound Share] Initial", item);
-          safelyHandle(onShare, item);
+          const payload = await toBashChatPayload(item);
+
+          // ✅ Call onShare if provided, else fallback to addMessage
+          if (onShare) {
+            onShare(payload);
+          } else {
+            addMessage(payload);
+          }
+
+          console.log("[Inbound Share] Initial payload:", payload);
         }
       });
     } catch (e) {
       console.warn("[Inbound Share] getSharedText error:", e);
     }
 
-    // Runtime shares: listen for v5 DeviceEvent "NewShareEvent"
-    const subscription = shareMenuEmitter.addListener("NewShareEvent", (item) => {
+    // Runtime: new shares while app is open
+    const sub = shareMenuEmitter.addListener("NewShareEvent", async (item) => {
       if (item) {
-        logShare("[Inbound Share] New event", item);
-        safelyHandle(onShare, item);
+        const payload = await toBashChatPayload(item);
+
+        if (onShare) {
+          onShare(payload);
+        } else {
+          addMessage(payload);
+        }
+
+        console.log("[Inbound Share] New payload:", payload);
       }
     });
 
-    return () => {
-      subscription.remove();
-    };
-  }, [onShare]);
+    return () => sub.remove();
+  }, [addMessage, onShare]);
 
   return null;
 }
 
-// Helpers
 
-function safelyHandle(handler, item) {
+// --- Helpers ---
+
+function inferMimeFromUri(uri) {
+  const ext = uri?.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "jpg":
+    case "jpeg": return "image/jpeg";
+    case "png": return "image/png";
+    case "gif": return "image/gif";
+    case "webp": return "image/webp";
+    case "mp4": return "video/mp4";
+    case "mov": return "video/quicktime";
+    case "m4a": return "audio/m4a";
+    case "aac": return "audio/aac";
+    case "mp3": return "audio/mpeg";
+    case "wav": return "audio/wav";
+    default: return undefined;
+  }
+}
+
+function getFilenameFromUri(uri, fallback = "share") {
   try {
-    handler?.(normalizeItem(item));
+    const last = uri.split("?")[0].split("/").pop();
+    return last || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// Normalize shared item into your store payload
+async function toBashChatPayload(item) {
+  const mime = (item?.mimeType || "").toLowerCase();
+
+  // Text
+  if (
+    mime === "text/plain" ||
+    (typeof item?.data === "string" &&
+      !mime.startsWith("image/") &&
+      !mime.startsWith("video/") &&
+      !mime.startsWith("audio/"))
+  ) {
+    return { text: String(item.data || "") };
+  }
+
+  const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
+  if (typeof uri !== "string" || uri.length === 0) {
+    return { text: "[Unsupported share payload]" };
+  }
+
+  const filename = getFilenameFromUri(uri, "shared");
+
+  let base64 = null;
+  try {
+    const cachePath = FileSystem.cacheDirectory + filename;
+    await FileSystemLegacy.copyAsync({ from: uri, to: cachePath });
+    base64 = await FileSystemLegacy.readAsStringAsync(cachePath, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
   } catch (e) {
-    console.warn("[Inbound Share] onShare handler error:", e);
-  }
-}
-
-// Normalize shape to keep your app logic clean
-function normalizeItem(item) {
-  // v5 returns:
-  // - Single: { mimeType: string, data: string }
-  // - Multiple: { mimeType: string, data: [string, ...] }
-  if (!item) return null;
-
-  const { mimeType, data } = item;
-
-  if (Array.isArray(data)) {
-    return { kind: "multiple", mimeType, uris: data };
+    console.log("[Share] Failed to load shared URI:", e);
   }
 
-  if (mimeType === "text/plain") {
-    return { kind: "text", text: data };
+  if (!base64) {
+    return { text: "[Failed to load media]" };
   }
 
-  // Common media types: image/*, audio/*, video/*
-  return { kind: "uri", mimeType, uri: data };
-}
+  if (mime.startsWith("image/")) {
+    return {
+      image: uri,
+      base64,
+      filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg`,
+    };
+  }
+  if (mime.startsWith("video/")) {
+    return {
+      video_url: uri,
+      video: base64,
+      video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`,
+    };
+  }
+  if (mime.startsWith("audio/")) {
+    const audioExt = filename.split(".").pop().toLowerCase();
+    const safeName = ["m4a", "aac", "mp3", "wav"].includes(audioExt)
+      ? filename
+      : `${filename}.m4a`;
+    return {
+      voice: uri,
+      base64,
+      filename: safeName,
+    };
+  }
 
-function logShare(prefix, item) {
-  try {
-    console.log(prefix + ":", item);
-  } catch {}
+  return { text: uri };
 }
