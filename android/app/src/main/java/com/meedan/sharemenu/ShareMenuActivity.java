@@ -13,6 +13,8 @@ public class ShareMenuActivity extends Activity {
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    
+    Intent incoming = getIntent();    
 
     Intent main = new Intent(this, MainActivity.class);
     main.setAction(getIntent().getAction());

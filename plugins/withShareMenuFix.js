@@ -242,6 +242,16 @@ public class ShareMenuActivity extends Activity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
+    // 🔎 Debug logs
+    Log.d("ShareMenuActivity", "Action: " + incoming.getAction());
+    Log.d("ShareMenuActivity", "Type: " + incoming.getType());
+    Log.d("ShareMenuActivity", "Data: " + incoming.getData());
+    if (incoming.getExtras() != null) {
+      Log.d("ShareMenuActivity", "Extras: " + incoming.getExtras().toString());
+    } else {
+      Log.d("ShareMenuActivity", "Extras: null");
+    }
+
     Intent main = new Intent(this, MainActivity.class);
     main.setAction(getIntent().getAction());
     main.setType(getIntent().getType());
