@@ -1,16 +1,14 @@
 // plugins/sharemenu/ShareMenuActivity.java
 package com.meedan.sharemenu;
 
+import java.util.ArrayList;
+
+import com.testrunner.MainActivity;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import java.util.ArrayList;
-
-// IMPORTANT: Replace this import with your actual MainActivity package.
-// If your MainActivity.java starts with "package com.anonymous.realtimechatexpo;",
-// then this import is correct:
-import com.anonymous.realtimechatexpo.MainActivity;
 
 public class ShareMenuActivity extends Activity {
 
