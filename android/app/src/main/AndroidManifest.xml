@@ -30,7 +30,8 @@
         <data android:scheme="realtimechatexpo"/>
       </intent-filter>
     </activity>
-    <activity android:name="com.meedan.sharemenu.ShareMenuActivity" android:exported="true" android:launchMode="singleTop">
+    <activity android:name="com.meedan.sharemenu.ShareMenuActivity" tools:node="remove"/>
+    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:launchMode="singleTop" android:grantUriPermissions="true">
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
@@ -50,6 +51,11 @@
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="video/*"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND_MULTIPLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="text/*"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>

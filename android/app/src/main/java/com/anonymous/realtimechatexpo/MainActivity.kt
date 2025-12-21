@@ -14,6 +14,8 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  companion object { private const val TAG = "MainActivity" }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
@@ -23,6 +25,7 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+    handleInboundShareIntent(intent, source = "onCreate")
   }
 
   /**
@@ -64,4 +67,20 @@ class MainActivity : ReactActivity() {
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
+  private fun handleInboundShareIntent(intent: Intent?, source: String) {
+    if (intent == null) return
+    val action = intent.action
+    val type = intent.type
+    val data = intent.data
+    val extras = intent.extras
+    Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    handleInboundShareIntent(intent, source = "onNewIntent")
+  }
+
 }

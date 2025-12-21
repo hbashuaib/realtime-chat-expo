@@ -35,26 +35,20 @@ index 9c668c4..0a0938a 100644
 +<manifest xmlns:android="http://schemas.android.com/apk/res/android">
  
  </manifest>
-diff --git a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuModule.java
-similarity index 99%
-rename from node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java
-rename to node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuModule.java
+diff --git a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java
 index 09abd7b..7e18463 100644
 --- a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java
-+++ b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuModule.java
++++ b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuModule.java
 @@ -1,4 +1,4 @@
 -package com.meedan;
 +package com.meedan.sharemenu;
  
  import com.facebook.react.bridge.ActivityEventListener;
  import com.facebook.react.bridge.Arguments;
-diff --git a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuPackage.java
-similarity index 96%
-rename from node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java
-rename to node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuPackage.java
+diff --git a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java
 index 3884e25..fdae748 100644
 --- a/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java
-+++ b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/sharemenu/ShareMenuPackage.java
++++ b/node_modules/react-native-share-menu/android/src/main/java/com/meedan/ShareMenuPackage.java
 @@ -1,4 +1,4 @@
 -package com.meedan;
 +package com.meedan.sharemenu;

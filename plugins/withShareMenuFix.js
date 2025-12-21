@@ -298,31 +298,29 @@ public class ShareMenuActivity extends Activity {
   ]);
 }
 
-// --- Ensure ShareMenuActivity.java exists ---
+// --- Ensure Share intents are handled in MainActivity (robust injection) ---
 function withMainActivityInboundHandling(config) {
   console.log("withMainActivityInboundHandling fired");
   return withMainActivity(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // Ensure imports
+    // 1) Ensure imports
     src = ensureImportsAtTop(src);
     if (!/import\s+android\.util\.Log/.test(src)) {
       src = src.replace(/(^package[^\n]+\n)/, `$1import android.util.Log\n`);
     }
 
-    // Add TAG
-    if (!/private\s+val\s+TAG\s*=/.test(src)) {
+    // 2) Ensure companion object TAG right after class opening brace
+    if (!/companion\s+object\s*{[^}]*TAG/.test(src)) {
       src = src.replace(
-        /class\s+MainActivity\s*:\s*ReactActivity\s*\{/,
-        `class MainActivity : ReactActivity() {\n  private val TAG = "MainActivity"\n`
+        /class\s+MainActivity[^{]*\{/,
+        `class MainActivity : ReactActivity() {\n  companion object { private const val TAG = "MainActivity" }\n`
       );
     }
 
-    // Add helper
-    if (!/fun\s+handleInboundShareIntent\(/.test(src)) {
-      src = src.replace(
-        /override\s+fun\s+invokeDefaultOnBackPressed[\s\S]*?\}\s*$/,
-        `private fun handleInboundShareIntent(intent: Intent?, source: String) {
+    // 3) Ensure handleInboundShareIntent helper
+    const helperBlock = `
+  private fun handleInboundShareIntent(intent: Intent?, source: String) {
     if (intent == null) return
     val action = intent.action
     val type = intent.type
@@ -330,36 +328,32 @@ function withMainActivityInboundHandling(config) {
     val extras = intent.extras
     Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
   }
-
-  $&
-`
-      );
+`;
+    if (!/fun\s+handleInboundShareIntent\(/.test(src)) {
+      const closeIdx = src.lastIndexOf("\n}");
+      src = src.slice(0, closeIdx) + helperBlock + src.slice(closeIdx);
     }
 
-    // Add onNewIntent
-    if (!/override\s+fun\s+onNewIntent\(/.test(src)) {
-      src = src.replace(
-        /override\s+fun\s+getMainComponentName\([\s\S]*?}\s*/,
-        `$&
-  override fun onNewIntent(intent: Intent?) {
+    // 4) Ensure onNewIntent override (non-null Intent)
+    const onNewIntentBlock = `
+  override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    if (intent == null) {
-      Log.w(TAG, "onNewIntent: null intent")
-      return
-    }
     setIntent(intent)
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     handleInboundShareIntent(intent, source = "onNewIntent")
   }
-`
-      );
+`;
+    if (!/override\s+fun\s+onNewIntent\(/.test(src)) {
+      const closeIdx = src.lastIndexOf("\n}");
+      src = src.slice(0, closeIdx) + onNewIntentBlock + src.slice(closeIdx);
     }
 
-    // Log cold start intent in onCreate
+    // 5) Fix cold-start injection: place inside onCreate before its closing brace
     if (!/handleInboundShareIntent\(intent,\s*source\s*=\s*"onCreate"\)/.test(src)) {
       src = src.replace(
-        /override\s+fun\s+onCreate\([\s\S]*?super\.onCreate\(null\)[\s\S]*?\n/,
-        (m) => m + `  handleInboundShareIntent(intent, source = "onCreate")\n`
+        /(override\s+fun\s+onCreate\([\s\S]*?\{)([\s\S]*?super\.onCreate\([^\)]*\)[^\n]*\n)([\s\S]*?)(\s*})/,
+        (match, start, superLine, rest, endBrace) =>
+          `${start}${superLine}    handleInboundShareIntent(intent, source = "onCreate")\n${rest}${endBrace}`
       );
     }
 
