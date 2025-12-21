@@ -26,7 +26,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Share from "react-native-share";
-import ShareMenu from "react-native-share-menu";
 import bg from "../assets/images/chat-background.png";
 import Thumbnail from "../common/Thumbnail";
 import EmojiPicker from "../components/EmojiPicker";
@@ -1100,104 +1099,83 @@ export default function MessageScreen() {
     setMessage("");
   }
   
+  /* Example: consume via global queued payload */
+  const inbound = useGlobal((s) => s.inboundPayload);        // implement setter in bridge path if you prefer global
+  const clearInbound = useGlobal((s) => s.clearInboundPayload);
 
-  // Inbound share: initial share when app is opened via share
   useEffect(() => {
-    ShareMenu.getInitialShare(async (item) => {
-      if (!item) return;
-      try {
-        console.log("[ShareMenu] initial:", item);
-        const normalized = await toBashChatPayload(item);
+    if (!inbound) return;
+    if (!connectionId) return;
 
-        // Navigate to Friends tab
-        //router.replace("/Friends");
+    console.log("[Message] Consuming inbound payload:", inbound);
 
-        // If connectionId is ready, send immediately
-        if (connectionId) {
-          if (normalized.kind === "text") {
-            const text = (normalized.text || "").trim();
-            if (text.length > 0) messageSend(connectionId, text);
-          } else {
-            messageSend(connectionId, "", normalized.payload);
-          }
-        } else {
-          // Optionally: stash payload in global state until connectionId is set
-          router.replace("/(tabs)/Friends");
-          addMessage(normalized);
-        }
-      } catch (e) {
-        console.log("[ShareMenu] initial error:", e, "item:", item);
-      }
-    });
-  }, [connectionId, messageSend]);
+    if (inbound.kind === "text") {
+      const text = (inbound.text || "").trim();
+      if (text.length > 0) messageSend(connectionId, text);
+    } else {
+      // normalized payload from bridge (image/video/audio)
+      messageSend(connectionId, "", inbound.payload || inbound);
+    }
 
+    clearInbound();
+  }, [inbound, connectionId, messageSend]);
+    
 
+  // // Inbound share: initial share when app is opened via share
   // useEffect(() => {
   //   ShareMenu.getInitialShare(async (item) => {
   //     if (!item) return;
   //     try {
   //       console.log("[ShareMenu] initial:", item);
   //       const normalized = await toBashChatPayload(item);
-  //       if (!connectionId) return; // require an active chat
-  //       if (normalized.kind === "text") {
-  //         const text = (normalized.text || "").trim();
-  //         if (text.length > 0) messageSend(connectionId, text);
+
+  //       // Navigate to Friends tab
+  //       //router.replace("/Friends");
+
+  //       // If connectionId is ready, send immediately
+  //       if (connectionId) {
+  //         if (normalized.kind === "text") {
+  //           const text = (normalized.text || "").trim();
+  //           if (text.length > 0) messageSend(connectionId, text);
+  //         } else {
+  //           messageSend(connectionId, "", normalized.payload);
+  //         }
   //       } else {
-  //         messageSend(connectionId, "", normalized.payload);
+  //         // Optionally: stash payload in global state until connectionId is set
+  //         router.replace("/(tabs)/Friends");
+  //         addMessage(normalized);
   //       }
   //     } catch (e) {
-  //       console.log("[ShareMenu] initial error:", e);
+  //       console.log("[ShareMenu] initial error:", e, "item:", item);
   //     }
   //   });
-  // }, [connectionId, messageSend]);
+  // }, [connectionId, messageSend]);  
 
 
-  // Inbound share: while app is running / coming from background
-  useEffect(() => {
-    const unsubscribe = ShareMenu.addNewShareListener(async (item) => {
-      if (!item) return;
-      try {
-        console.log("[ShareMenu] new:", item);
-        const normalized = await toBashChatPayload(item);
-
-        // Navigate to Friends tab
-        //router.replace("/Friends");
-
-        if (connectionId) {
-          if (normalized.kind === "text") {
-            const text = (normalized.text || "").trim();
-            if (text.length > 0) messageSend(connectionId, text);
-          } else {
-            messageSend(connectionId, "", normalized.payload);
-          }
-        } else {
-          router.replace("/(tabs)/Friends");
-          addMessage(normalized);
-        }
-      } catch (e) {
-        console.log("[ShareMenu] initial error:", e, "item:", item);
-      }
-    });
-    return () => unsubscribe && unsubscribe.remove && unsubscribe.remove();
-  }, [connectionId, messageSend]);
-
-
-
+  // // Inbound share: while app is running / coming from background
   // useEffect(() => {
   //   const unsubscribe = ShareMenu.addNewShareListener(async (item) => {
   //     if (!item) return;
   //     try {
   //       console.log("[ShareMenu] new:", item);
   //       const normalized = await toBashChatPayload(item);
-  //       if (!connectionId) return;
-  //       if (normalized.kind === "text") {
-  //         const text = (normalized.text || "").trim();
-  //         if (text.length > 0) messageSend(connectionId, text);
+
+  //       // Navigate to Friends tab
+  //       //router.replace("/Friends");
+
+  //       if (connectionId) {
+  //         if (normalized.kind === "text") {
+  //           const text = (normalized.text || "").trim();
+  //           if (text.length > 0) messageSend(connectionId, text);
+  //         } else {
+  //           messageSend(connectionId, "", normalized.payload);
+  //         }
   //       } else {
-  //         messageSend(connectionId, "", normalized.payload);
+  //         router.replace("/(tabs)/Friends");
+  //         addMessage(normalized);
   //       }
   //     } catch (e) {
-  //       console.log("[ShareMenu] new error:", e);
+  //       console.log("[ShareMenu] initial error:", e, "item:", item);
   //     }
   //   });
   //   return () => unsubscribe && unsubscribe.remove && unsubscribe.remove();
