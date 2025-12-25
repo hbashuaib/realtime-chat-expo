@@ -35,12 +35,22 @@
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
         <data android:mimeType="*/*"/>
+        <data android:mimeType="image/*"/>
+        <data android:mimeType="text/plain"/>
+        <data android:scheme="content"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
         <data android:mimeType="*/*"/>
+        <data android:mimeType="image/*"/>
+        <data android:mimeType="text/plain"/>
+        <data android:scheme="content"/>
       </intent-filter>
     </activity>
   </application>

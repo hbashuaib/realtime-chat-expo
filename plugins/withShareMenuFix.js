@@ -36,6 +36,7 @@ function ensureImportsAtTop(src) {
   const required = [
     "import android.content.Intent",
     "import android.util.Log",
+    "import android.net.Uri",
   ];
 
   out = out.replace(
@@ -150,17 +151,33 @@ function withShareMenuActivity(config) {
           "android:grantUriPermissions": "true",
         },
         "intent-filter": [
-          // Single item (catch-all)
           {
             action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-            category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
-            data: [{ $: { "android:mimeType": "*/*" } }],
+            category: [
+              { $: { "android:name": "android.intent.category.DEFAULT" } },
+              { $: { "android:name": "android.intent.category.BROWSABLE" } },
+              { $: { "android:name": "android.intent.category.LAUNCHER" } },
+            ],
+            data: [
+              { $: { "android:mimeType": "*/*" } },
+              { $: { "android:mimeType": "image/*" } },
+              { $: { "android:mimeType": "text/plain" } },
+              { $: { "android:scheme": "content" } },
+            ],
           },
-          // Multiple items (catch-all)
           {
             action: [{ $: { "android:name": "android.intent.action.SEND_MULTIPLE" } }],
-            category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
-            data: [{ $: { "android:mimeType": "*/*" } }],
+            category: [
+              { $: { "android:name": "android.intent.category.DEFAULT" } },
+              { $: { "android:name": "android.intent.category.BROWSABLE" } },
+              { $: { "android:name": "android.intent.category.LAUNCHER" } },
+            ],
+            data: [
+              { $: { "android:mimeType": "*/*" } },
+              { $: { "android:mimeType": "image/*" } },
+              { $: { "android:mimeType": "text/plain" } },
+              { $: { "android:scheme": "content" } },
+            ],
           },
         ],
       });
@@ -242,6 +259,9 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.net.Uri;
+
+import java.util.ArrayList;
 
 public class ShareMenuActivity extends Activity {
   private static final String TAG = "ShareMenuActivity";
@@ -260,18 +280,36 @@ public class ShareMenuActivity extends Activity {
     Log.d(TAG, "action=" + incoming.getAction());
     Log.d(TAG, "type=" + incoming.getType());
     Log.d(TAG, "data=" + incoming.getData());
+    Log.d(TAG, "clipData=" + incoming.getClipData());
     Log.d(TAG, "extras=" + (incoming.getExtras() != null ? incoming.getExtras().toString() : "null"));
 
     Intent main = new Intent(this, MainActivity.class);
     main.setAction(incoming.getAction());
     main.setType(incoming.getType());
-    main.setData(incoming.getData());
+    main.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP
+      | Intent.FLAG_ACTIVITY_CLEAR_TOP
+      | Intent.FLAG_ACTIVITY_NEW_TASK
+      | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+    // Copy data/clipData
+    if (incoming.getData() != null) main.setData(incoming.getData());
+    if (incoming.getClipData() != null) main.setClipData(incoming.getClipData());
+
+    // Forward any remaining extras first
     if (incoming.getExtras() != null) {
       main.putExtras(incoming.getExtras());
     }
-    main.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP
-      | Intent.FLAG_ACTIVITY_CLEAR_TOP
-      | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+    // Then overwrite with explicit text/stream to ensure they survive
+    if (Intent.ACTION_SEND.equals(incoming.getAction())) {
+      final Uri single = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
+      final String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
+      if (single != null) main.putExtra(Intent.EXTRA_STREAM, single);
+      if (text != null) main.putExtra(Intent.EXTRA_TEXT, text);
+    } else if (Intent.ACTION_SEND_MULTIPLE.equals(incoming.getAction())) {
+      final ArrayList<Uri> list = incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+      if (list != null) main.putParcelableArrayListExtra(Intent.EXTRA_STREAM, list);
+    }
 
     startActivity(main);
     finish();
@@ -313,7 +351,13 @@ function withMainActivityInboundHandling(config) {
     val type = intent.type
     val data = intent.data
     val extras = intent.extras
+
+    val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+    val singleStream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+    val multipleStreams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+
     Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
+    Log.d(TAG, "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
   }
 `;
     if (!/fun\s+handleInboundShareIntent\(/.test(src)) {
@@ -393,47 +437,3 @@ module.exports = function withShareMenuFix(config) {
 
 };
 
-
-
-// module.exports = function withShareMenuFix(config) {
-//   console.log("withShareMenuFix function executing");  // <-- proves Expo called this function
-
-//   // 1) Gradle override (keep)
-//   config = withProjectBuildGradle(config, (cfg) => {
-//     console.log("withProjectBuildGradle exported");
-//     const gradle = cfg.modResults;
-//     if (gradle.language !== "groovy") return cfg;
-//     const contents = gradle.contents || "";
-//     if (!contents.includes(PATCH_START)) {
-//       gradle.contents = `${contents.trim()}\n\n${getGradlePatchBlock()}\n`;
-//     }
-//     return cfg;
-//   });
-
-//   // 2) Defensive import fix in MainActivity (keep)
-//   config = withMainActivity(config, (cfg) => {
-//     console.log("withMainActivity exported");
-//     let src = cfg.modResults.contents;
-//     src = ensureImportsAtTop(src);
-//     cfg.modResults.contents = src;
-//     return cfg;
-//   });
-
-//   // 3) Force manifest package (keep)
-//   config = withManifestPackage(config);
-
-//   // 4) Inject your app ShareMenuActivity + filters + grantUriPermissions
-//   config = withShareMenuActivity(config);
-
-//   // 5) Normalize MainActivity VIEW filters (keep)
-//   config = withNormalizeMainActivityViewFilters(config);
-
-//   // 6) Inject MainActivity onNewIntent + logging
-//   config = withMainActivityInboundHandling(config);
-
-//   // 7) Write ShareMenuActivity.java into your app package
-//   config = withShareMenuActivitySource(config);
-
-//   return config;
-
-// };

@@ -2,6 +2,7 @@ package com.anonymous.realtimechatexpo
 import expo.modules.splashscreen.SplashScreenManager
 import android.content.Intent
 import android.util.Log
+import android.net.Uri
 
 import android.os.Build
 import android.os.Bundle
@@ -73,7 +74,13 @@ class MainActivity : ReactActivity() {
     val type = intent.type
     val data = intent.data
     val extras = intent.extras
+
+    val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+    val singleStream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+    val multipleStreams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+
     Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
+    Log.d(TAG, "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
   }
 
   override fun onNewIntent(intent: Intent) {

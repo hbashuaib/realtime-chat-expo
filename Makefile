@@ -128,13 +128,17 @@ kill-metro:
 
 # adb logcat *:D
 
+# adb logcat | findstr "ShareMenuActivity MainActivity"
+
+# adb logcat | Select-String -Pattern "ShareMenuActivity|MainActivity"
+
 
 # ./rebuild.ps1
 
 # To check if ShareMenuActivity is in the APK manifest:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "ShareMenuActivity"
 
-
+781
 # Run emulator from command:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\emulator\emulator.exe" -list-avds
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\emulator\emulator.exe" -avd Medium_Phone_API_36.1
@@ -280,5 +284,21 @@ or
 git status
 git branch
 git add -A
-git commit -m "Daily update"
+git commit -m "Daily update: work progress and fixes"
 git push origin master
+
+
+Update rebuild.ps1 to reply to below:
+
+[2025-12-25 18:41:44] Running expo prebuild...
+withShareMenuFix.js loaded
+withShareMenuFix function executing
+withManifestPackage fired
+withShareMenuActivity fired
+withNormalizeMainActivityViewFilters fired
+withMainActivityInboundHandling fired
+withShareMenuActivitySource fired
+! Git branch has uncommitted file changes
+› It's recommended to commit all changes before proceeding in case you want to revert generated changes.
+
+? Continue with uncommitted changes? » (Y/n)
