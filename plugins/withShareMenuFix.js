@@ -1,14 +1,15 @@
 // plugins/withShareMenuFix.js
 console.log("withShareMenuFix.js loaded"); 
 
-const fs = require("fs");
-const path = require("path");
-const {
+const {  
   withProjectBuildGradle,
   withMainActivity,
   withAndroidManifest,
   withDangerousMod,
 } = require("@expo/config-plugins");
+
+const fs = require("fs");
+const path = require("path");
 
 const PATCH_START = "// === share-menu sdk override start ===";
 const PATCH_END = "// === share-menu sdk override end ===";
@@ -149,32 +150,18 @@ function withShareMenuActivity(config) {
           "android:grantUriPermissions": "true",
         },
         "intent-filter": [
-          // Single item
-          { action:[{ $:{ "android:name":"android.intent.action.SEND"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"text/plain"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"image/*"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"audio/*"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"video/*"}}] },
-          // Multiple items
-          { action:[{ $:{ "android:name":"android.intent.action.SEND_MULTIPLE"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"text/*"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND_MULTIPLE"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"image/*"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND_MULTIPLE"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"audio/*"}}] },
-          { action:[{ $:{ "android:name":"android.intent.action.SEND_MULTIPLE"}}],
-            category:[{ $:{ "android:name":"android.intent.category.DEFAULT"}}],
-            data:[{ $:{ "android:mimeType":"video/*"}}] },
+          // Single item (catch-all)
+          {
+            action: [{ $: { "android:name": "android.intent.action.SEND" } }],
+            category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+            data: [{ $: { "android:mimeType": "*/*" } }],
+          },
+          // Multiple items (catch-all)
+          {
+            action: [{ $: { "android:name": "android.intent.action.SEND_MULTIPLE" } }],
+            category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+            data: [{ $: { "android:mimeType": "*/*" } }],
+          },
         ],
       });
     }
@@ -405,3 +392,48 @@ module.exports = function withShareMenuFix(config) {
   return config;
 
 };
+
+
+
+// module.exports = function withShareMenuFix(config) {
+//   console.log("withShareMenuFix function executing");  // <-- proves Expo called this function
+
+//   // 1) Gradle override (keep)
+//   config = withProjectBuildGradle(config, (cfg) => {
+//     console.log("withProjectBuildGradle exported");
+//     const gradle = cfg.modResults;
+//     if (gradle.language !== "groovy") return cfg;
+//     const contents = gradle.contents || "";
+//     if (!contents.includes(PATCH_START)) {
+//       gradle.contents = `${contents.trim()}\n\n${getGradlePatchBlock()}\n`;
+//     }
+//     return cfg;
+//   });
+
+//   // 2) Defensive import fix in MainActivity (keep)
+//   config = withMainActivity(config, (cfg) => {
+//     console.log("withMainActivity exported");
+//     let src = cfg.modResults.contents;
+//     src = ensureImportsAtTop(src);
+//     cfg.modResults.contents = src;
+//     return cfg;
+//   });
+
+//   // 3) Force manifest package (keep)
+//   config = withManifestPackage(config);
+
+//   // 4) Inject your app ShareMenuActivity + filters + grantUriPermissions
+//   config = withShareMenuActivity(config);
+
+//   // 5) Normalize MainActivity VIEW filters (keep)
+//   config = withNormalizeMainActivityViewFilters(config);
+
+//   // 6) Inject MainActivity onNewIntent + logging
+//   config = withMainActivityInboundHandling(config);
+
+//   // 7) Write ShareMenuActivity.java into your app package
+//   config = withShareMenuActivitySource(config);
+
+//   return config;
+
+// };

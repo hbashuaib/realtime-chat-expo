@@ -2,6 +2,9 @@
 # Interactive tiered clean & rebuild for BashChat
 # Run: .\rebuild.ps1
 
+# Ensure NODE_ENV is set
+$env:NODE_ENV="development"
+
 function LogStep($message) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-Host "[$timestamp] $message"

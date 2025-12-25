@@ -65,7 +65,9 @@
       ],
       "./app.plugin.js",
       "./plugins/withShareMenuFix.js",
-      "./plugins/withGradlePropertiesFix.js"
+      "./plugins/withGradlePropertiesFix.js",
+      "./plugins/withDisableDuplicateShareMenu.js",
+      "./plugins/withShareMenuManifestFix.js"
     ],
 
     "experiments": {

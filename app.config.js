@@ -22,7 +22,7 @@ export default {
       predictiveBackGestureEnabled: false,
       package: "com.anonymous.realtimechatexpo",
 
-      // Keep your current permissions (unchanged for minimal risk)
+      // ✅ Keep your current permissions
       permissions: [
         "CAMERA",
         "INTERNET",
@@ -31,10 +31,9 @@ export default {
         "RECORD_AUDIO",
         "SYSTEM_ALERT_WINDOW",
         "VIBRATE",
-        "WRITE_EXTERNAL_STORAGE",
       ],
 
-      // ❌ No intentFilters here — Expo will auto-generate VIEW filters from 'scheme'
+      // ❌ No intentFilters here — Expo auto‑generates VIEW filters from 'scheme'
     },
 
     web: {
@@ -69,8 +68,9 @@ export default {
         },
       ],
       "./app.plugin.js",
+
+      // ✅ Keep only one share‑menu plugin to avoid conflicts
       "./plugins/withShareMenuFix.js",
-      "./plugins/withGradlePropertiesFix.js",
     ],
 
     experiments: {

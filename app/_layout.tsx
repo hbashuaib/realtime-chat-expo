@@ -32,29 +32,7 @@ export default function RootLayout() {
     init();
   }, [init]);
 
-  const currentTheme = theme[colorScheme];
-
-  // const handleInboundShare = useCallback(
-  //   (payload: null | { kind: string; text?: string; uri?: string }) => {
-  //     if (!payload || shareConsumed) return;
-  //     setShareConsumed(true);
-
-  //     if (!activeFriend || !activeConnectionId) {
-  //       console.warn("[Inbound Share] No active chat context");
-  //       router.replace("/(tabs)/Friends");
-  //       return;
-  //     }
-
-  //     router.replace({
-  //       pathname: "/Message",
-  //       params: {
-  //         id: String(activeConnectionId),
-  //         friend: JSON.stringify(activeFriend),
-  //       },
-  //     });
-  //   },
-  //   [shareConsumed, activeFriend, activeConnectionId]
-  // );
+  const currentTheme = theme[colorScheme];  
 
   const [queuedPayload, setQueuedPayload] = useState<null | { kind: string; text?: string; uri?: string }>(null);
 
@@ -110,5 +88,30 @@ export default function RootLayout() {
   );
   
 }
+
+
+
+
+// const handleInboundShare = useCallback(
+  //   (payload: null | { kind: string; text?: string; uri?: string }) => {
+  //     if (!payload || shareConsumed) return;
+  //     setShareConsumed(true);
+
+  //     if (!activeFriend || !activeConnectionId) {
+  //       console.warn("[Inbound Share] No active chat context");
+  //       router.replace("/(tabs)/Friends");
+  //       return;
+  //     }
+
+  //     router.replace({
+  //       pathname: "/Message",
+  //       params: {
+  //         id: String(activeConnectionId),
+  //         friend: JSON.stringify(activeFriend),
+  //       },
+  //     });
+  //   },
+  //   [shareConsumed, activeFriend, activeConnectionId]
+  // );
 
 

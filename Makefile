@@ -122,8 +122,17 @@ kill-metro:
 
 # adb logcat ActivityManager:I BashChatShare:D *:S
 
+# adb logcat MainActivity:D ShareMenuActivity:D *:S
+
+# adb logcat | grep com.anonymous.realtimechatexpo
+
+# adb logcat *:D
+
 
 # ./rebuild.ps1
+
+# To check if ShareMenuActivity is in the APK manifest:
+# & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "ShareMenuActivity"
 
 
 # Run emulator from command:
@@ -228,3 +237,48 @@ kill-metro:
 
 # daily-push:
 # git add . && git commit -m "Daily: publish latest working state" && git push origin master
+
+# To check if SEND permission is in the APK manifest:
+# & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "SEND"
+
+cd "D:\My Projects\realtime-chat-expo"
+
+# 1. See what changed
+git status
+
+# 2. Stage all changes
+git add -A
+
+# 3. Commit with a daily message
+git commit -m "Daily update: work progress and fixes"
+
+# 4. Make sure you’re on master
+git branch -vv
+
+# 5. Pull latest master with rebase (to avoid conflicts)
+git pull --rebase origin master
+
+# 6. Push your changes up
+git push origin master
+
+or
+
+cd "D:\My Projects\realtime-chat-expo"
+
+# Stage all changes
+git add -A
+
+# Commit with a daily message
+git commit -m "Daily update: work progress and fixes"
+
+# Push directly to master
+git push origin master
+
+
+or 
+
+git status
+git branch
+git add -A
+git commit -m "Daily update"
+git push origin master
