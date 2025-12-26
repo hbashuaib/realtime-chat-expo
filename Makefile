@@ -132,6 +132,10 @@ kill-metro:
 
 # adb logcat | Select-String -Pattern "ShareMenuActivity|MainActivity"
 
+# adb logcat | Select-String -Pattern "ShareMenuActivity|MainActivity|\[Inbound Share\]"
+
+# adb logcat | Select-String -Pattern "BashChatShare"
+
 
 # ./rebuild.ps1
 
@@ -245,60 +249,64 @@ kill-metro:
 # To check if SEND permission is in the APK manifest:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "SEND"
 
-cd "D:\My Projects\realtime-chat-expo"
+# cd "D:\My Projects\realtime-chat-expo"
 
 # 1. See what changed
-git status
+# git status
 
 # 2. Stage all changes
-git add -A
+# git add -A
 
 # 3. Commit with a daily message
-git commit -m "Daily update: work progress and fixes"
+# git commit -m "Daily update: work progress and fixes"
 
 # 4. Make sure you’re on master
-git branch -vv
+# git branch -vv
 
 # 5. Pull latest master with rebase (to avoid conflicts)
-git pull --rebase origin master
+# git pull --rebase origin master
 
 # 6. Push your changes up
-git push origin master
+# git push origin master
 
-or
+# or
 
-cd "D:\My Projects\realtime-chat-expo"
+# cd "D:\My Projects\realtime-chat-expo"
 
 # Stage all changes
-git add -A
+# git add -A
 
 # Commit with a daily message
-git commit -m "Daily update: work progress and fixes"
+# git commit -m "Daily update: work progress and fixes"
 
 # Push directly to master
-git push origin master
+# git push origin master
 
 
-or 
+# or 
 
-git status
-git branch
-git add -A
-git commit -m "Daily update: work progress and fixes"
-git push origin master
+# git status
+# git branch
+# git add -A
+# git commit -m "Daily update: work progress and fixes"
+# git push origin master
 
 
-Update rebuild.ps1 to reply to below:
+# Update rebuild.ps1 to reply to below:
 
-[2025-12-25 18:41:44] Running expo prebuild...
-withShareMenuFix.js loaded
-withShareMenuFix function executing
-withManifestPackage fired
-withShareMenuActivity fired
-withNormalizeMainActivityViewFilters fired
-withMainActivityInboundHandling fired
-withShareMenuActivitySource fired
-! Git branch has uncommitted file changes
-› It's recommended to commit all changes before proceeding in case you want to revert generated changes.
+# [2025-12-25 18:41:44] Running expo prebuild...
+# withShareMenuFix.js loaded
+# withShareMenuFix function executing
+# withManifestPackage fired
+# withShareMenuActivity fired
+# withNormalizeMainActivityViewFilters fired
+# withMainActivityInboundHandling fired
+# withShareMenuActivitySource fired
+# ! Git branch has uncommitted file changes
+# › It's recommended to commit all changes before proceeding in case you want to revert generated changes.
 
-? Continue with uncommitted changes? » (Y/n)
+# ? Continue with uncommitted changes? » (Y/n)
+
+# LogStep "Running expo prebuild (CI mode)..."
+# $env:CI="1"
+# npx expo prebuild --clean

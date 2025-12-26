@@ -287,13 +287,13 @@ import android.net.Uri;
 import java.util.ArrayList;
 
 public class ShareMenuActivity extends Activity {
-  private static final String TAG = "ShareMenuActivity";
+  private static final String TAG = "BashChatShare";
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
-    Log.d(TAG, "=== ShareMenuActivity INVOKED by system ===");
+    Log.i(TAG, "=== ShareMenuActivity INVOKED by system ===");
 
     Intent incoming = getIntent();
     if (incoming == null) {
@@ -302,12 +302,12 @@ public class ShareMenuActivity extends Activity {
       return;
     }
 
-    Log.d(TAG, "=== ShareMenuActivity START ===");
-    Log.d(TAG, "Incoming action=" + incoming.getAction());
-    Log.d(TAG, "Incoming type=" + incoming.getType());
-    Log.d(TAG, "Incoming data=" + incoming.getData());
-    Log.d(TAG, "Incoming clipData=" + incoming.getClipData());
-    Log.d(TAG, "Incoming extras=" + (incoming.getExtras() != null ? incoming.getExtras().toString() : "null"));
+    Log.i(TAG, "=== ShareMenuActivity START ===");
+    Log.i(TAG, "Incoming action=" + incoming.getAction());
+    Log.i(TAG, "Incoming type=" + incoming.getType());
+    Log.i(TAG, "Incoming data=" + incoming.getData());
+    Log.i(TAG, "Incoming clipData=" + incoming.getClipData());
+    Log.i(TAG, "Incoming extras=" + (incoming.getExtras() != null ? incoming.getExtras().toString() : "null"));
 
     try {
       Intent main = new Intent(this, MainActivity.class);
@@ -325,23 +325,23 @@ public class ShareMenuActivity extends Activity {
       if (Intent.ACTION_SEND.equals(incoming.getAction())) {
         final Uri single = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
         final String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
-        Log.d(TAG, "Forward SEND single=" + single + " text=" + text);
+        Log.i(TAG, "Forward SEND single=" + single + " text=" + text);
         if (single != null) main.putExtra(Intent.EXTRA_STREAM, single);
         if (text != null) main.putExtra(Intent.EXTRA_TEXT, text);
       } else if (Intent.ACTION_SEND_MULTIPLE.equals(incoming.getAction())) {
         final java.util.ArrayList<Uri> list = incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-        Log.d(TAG, "Forward SEND_MULTIPLE list=" + list);
+        Log.i(TAG, "Forward SEND_MULTIPLE list=" + list);
         if (list != null) main.putParcelableArrayListExtra(Intent.EXTRA_STREAM, list);
       } else {
-        Log.d(TAG, "Forward unhandled action=" + incoming.getAction());
+        Log.i(TAG, "Forward unhandled action=" + incoming.getAction());
       }
 
-      Log.d(TAG, "Starting MainActivity with forwarded intent");
+      Log.i(TAG, "Starting MainActivity with forwarded intent");
       startActivity(main);
     } catch (Throwable t) {
       Log.e(TAG, "Error forwarding share intent", t);
     } finally {
-      Log.d(TAG, "=== ShareMenuActivity END ===");
+      Log.i(TAG, "=== ShareMenuActivity END ===");
       finish();
     }
   }
@@ -387,8 +387,8 @@ function withMainActivityInboundHandling(config) {
     val singleStream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
     val multipleStreams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
 
-    Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
-    Log.d(TAG, "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
+    Log.i("BashChatShare", "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
+    Log.i("BashChatShare", "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
   }
 `;
     if (!/fun\s+handleInboundShareIntent\(/.test(src)) {

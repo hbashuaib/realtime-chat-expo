@@ -79,8 +79,8 @@ class MainActivity : ReactActivity() {
     val singleStream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
     val multipleStreams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
 
-    Log.d(TAG, "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
-    Log.d(TAG, "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
+    Log.i("BashChatShare", "[Inbound] source=$source action=$action type=$type data=$data extras=$extras")
+    Log.i("BashChatShare", "[Inbound] EXTRA_TEXT=$text EXTRA_STREAM_SINGLE=$singleStream EXTRA_STREAM_LIST=$multipleStreams")
   }
 
   override fun onNewIntent(intent: Intent) {
