@@ -77,10 +77,15 @@ function withManifestPackage(config) {
   return withAndroidManifest(config, (cfg) => {
     const manifest = cfg.modResults.manifest;
     manifest.$ = manifest.$ || {};
+
+    // Ensure package and tools namespace for manifest mutations
     manifest.$.package = "com.anonymous.realtimechatexpo";
+    manifest.$["xmlns:tools"] = manifest.$["xmlns:tools"] || "http://schemas.android.com/tools";
+
     return cfg;
   });
 }
+
 
 // --- Inject ShareMenuActivity + cleanup SEND filters from MainActivity ---
 function withShareMenuActivity(config) {  
@@ -156,13 +161,16 @@ function withShareMenuActivity(config) {
             category: [
               { $: { "android:name": "android.intent.category.DEFAULT" } },
               { $: { "android:name": "android.intent.category.BROWSABLE" } },
-              { $: { "android:name": "android.intent.category.LAUNCHER" } },
             ],
             data: [
-              { $: { "android:mimeType": "*/*" } },
-              { $: { "android:mimeType": "image/*" } },
               { $: { "android:mimeType": "text/plain" } },
-              { $: { "android:scheme": "content" } },
+              { $: { "android:mimeType": "image/*" } },
+              { $: { "android:mimeType": "image/jpeg" } },
+              { $: { "android:mimeType": "video/*" } },
+              { $: { "android:mimeType": "video/mp4" } },
+              { $: { "android:mimeType": "audio/*" } },
+              { $: { "android:mimeType": "application/*" } },
+              { $: { "android:mimeType": "*/*" } },
             ],
           },
           {
@@ -170,17 +178,26 @@ function withShareMenuActivity(config) {
             category: [
               { $: { "android:name": "android.intent.category.DEFAULT" } },
               { $: { "android:name": "android.intent.category.BROWSABLE" } },
-              { $: { "android:name": "android.intent.category.LAUNCHER" } },
             ],
             data: [
-              { $: { "android:mimeType": "*/*" } },
-              { $: { "android:mimeType": "image/*" } },
               { $: { "android:mimeType": "text/plain" } },
-              { $: { "android:scheme": "content" } },
+              { $: { "android:mimeType": "image/*" } },
+              { $: { "android:mimeType": "image/jpeg" } },
+              { $: { "android:mimeType": "video/*" } },
+              { $: { "android:mimeType": "video/mp4" } },
+              { $: { "android:mimeType": "audio/*" } },
+              { $: { "android:mimeType": "application/*" } },
+              { $: { "android:mimeType": "*/*" } },
             ],
           },
         ],
       });
+
+      // ✅ Confirmation log
+      console.log(
+        "[Manifest] Injected ShareMenuActivity with SEND/SEND_MULTIPLE filters (text/plain, image/*, */*)"
+      );
+
     }
 
     // Log final activities
@@ -188,6 +205,12 @@ function withShareMenuActivity(config) {
       "Activities after mutation:",
       (app.activity || []).map(a => a.$?.["android:name"])
     );
+
+    console.log(
+      "[Manifest] Filters detail:",
+      JSON.stringify(app.activity[app.activity.length - 1]["intent-filter"], null, 2)
+    );
+
 
     return cfg;
   });
@@ -270,6 +293,8 @@ public class ShareMenuActivity extends Activity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
+    Log.d(TAG, "=== ShareMenuActivity INVOKED by system ===");
+
     Intent incoming = getIntent();
     if (incoming == null) {
       Log.w(TAG, "No incoming intent");
@@ -277,42 +302,48 @@ public class ShareMenuActivity extends Activity {
       return;
     }
 
-    Log.d(TAG, "action=" + incoming.getAction());
-    Log.d(TAG, "type=" + incoming.getType());
-    Log.d(TAG, "data=" + incoming.getData());
-    Log.d(TAG, "clipData=" + incoming.getClipData());
-    Log.d(TAG, "extras=" + (incoming.getExtras() != null ? incoming.getExtras().toString() : "null"));
+    Log.d(TAG, "=== ShareMenuActivity START ===");
+    Log.d(TAG, "Incoming action=" + incoming.getAction());
+    Log.d(TAG, "Incoming type=" + incoming.getType());
+    Log.d(TAG, "Incoming data=" + incoming.getData());
+    Log.d(TAG, "Incoming clipData=" + incoming.getClipData());
+    Log.d(TAG, "Incoming extras=" + (incoming.getExtras() != null ? incoming.getExtras().toString() : "null"));
 
-    Intent main = new Intent(this, MainActivity.class);
-    main.setAction(incoming.getAction());
-    main.setType(incoming.getType());
-    main.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP
-      | Intent.FLAG_ACTIVITY_CLEAR_TOP
-      | Intent.FLAG_ACTIVITY_NEW_TASK
-      | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    try {
+      Intent main = new Intent(this, MainActivity.class);
+      main.setAction(incoming.getAction());
+      main.setType(incoming.getType());
+      main.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP
+        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+        | Intent.FLAG_ACTIVITY_NEW_TASK
+        | Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-    // Copy data/clipData
-    if (incoming.getData() != null) main.setData(incoming.getData());
-    if (incoming.getClipData() != null) main.setClipData(incoming.getClipData());
+      if (incoming.getData() != null) main.setData(incoming.getData());
+      if (incoming.getClipData() != null) main.setClipData(incoming.getClipData());
+      if (incoming.getExtras() != null) main.putExtras(incoming.getExtras());
 
-    // Forward any remaining extras first
-    if (incoming.getExtras() != null) {
-      main.putExtras(incoming.getExtras());
+      if (Intent.ACTION_SEND.equals(incoming.getAction())) {
+        final Uri single = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
+        final String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
+        Log.d(TAG, "Forward SEND single=" + single + " text=" + text);
+        if (single != null) main.putExtra(Intent.EXTRA_STREAM, single);
+        if (text != null) main.putExtra(Intent.EXTRA_TEXT, text);
+      } else if (Intent.ACTION_SEND_MULTIPLE.equals(incoming.getAction())) {
+        final java.util.ArrayList<Uri> list = incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+        Log.d(TAG, "Forward SEND_MULTIPLE list=" + list);
+        if (list != null) main.putParcelableArrayListExtra(Intent.EXTRA_STREAM, list);
+      } else {
+        Log.d(TAG, "Forward unhandled action=" + incoming.getAction());
+      }
+
+      Log.d(TAG, "Starting MainActivity with forwarded intent");
+      startActivity(main);
+    } catch (Throwable t) {
+      Log.e(TAG, "Error forwarding share intent", t);
+    } finally {
+      Log.d(TAG, "=== ShareMenuActivity END ===");
+      finish();
     }
-
-    // Then overwrite with explicit text/stream to ensure they survive
-    if (Intent.ACTION_SEND.equals(incoming.getAction())) {
-      final Uri single = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
-      final String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
-      if (single != null) main.putExtra(Intent.EXTRA_STREAM, single);
-      if (text != null) main.putExtra(Intent.EXTRA_TEXT, text);
-    } else if (Intent.ACTION_SEND_MULTIPLE.equals(incoming.getAction())) {
-      final ArrayList<Uri> list = incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-      if (list != null) main.putParcelableArrayListExtra(Intent.EXTRA_STREAM, list);
-    }
-
-    startActivity(main);
-    finish();
   }
 }
 `;

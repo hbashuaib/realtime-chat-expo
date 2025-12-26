@@ -10,36 +10,40 @@ export default function InboundShareBridge({ onShare }) {
   const addMessage = useGlobal((s) => s.addMessage);
 
   useEffect(() => {
+    console.log("[Inbound Share] Bridge mounted");
+
     const consume = async (item) => {
       if (!item) return;
-
-      // Prevent double-handling on cold start
       if (!handledInitialRef.current) {
         handledInitialRef.current = true;
       }
-
       console.log("[Inbound Share] Raw item:", item);
-      const payload = await toBashChatPayload(item);
-
-      if (onShare) {
-        onShare(payload);
-      } else {
-        addMessage(payload);
+      try {
+        const payload = await toBashChatPayload(item);
+        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        console.log("[Inbound Share] Payload:", payload);
+      } catch (e) {
+        console.log("[Inbound Share] Error building payload:", e);
       }
-
-      console.log("[Inbound Share] Payload:", payload);
     };
 
-    // Cold start: app opened via share
-    ShareMenu.getInitialShare((item) => {
-      if (!item || handledInitialRef.current) return;
-      handledInitialRef.current = true;
-      consume(item);
-    });
+    // Cold start: use promise API if supported
+    if (ShareMenu.getInitialShare?.length === 0) {
+      ShareMenu.getInitialShare().then((item) => {
+        if (!item || handledInitialRef.current) return;
+        handledInitialRef.current = true;
+        consume(item);
+      });
+    } else {
+      // Callback fallback
+      ShareMenu.getInitialShare((item) => {
+        if (!item || handledInitialRef.current) return;
+        handledInitialRef.current = true;
+        consume(item);
+      });
+    }
 
-    // Runtime: new shares while app is open
     const listener = ShareMenu.addNewShareListener(consume);
-
     return () => listener.remove();
   }, [addMessage, onShare]);
 
