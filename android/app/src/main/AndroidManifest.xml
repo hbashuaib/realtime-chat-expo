@@ -30,33 +30,32 @@
         <data android:scheme="realtimechatexpo"/>
       </intent-filter>
     </activity>
-    <activity android:name="com.meedan.sharemenu.ShareMenuActivity" tools:node="remove"/>
-    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:launchMode="singleTop" android:grantUriPermissions="true">
+    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:enabled="true" android:launchMode="singleTask" android:grantUriPermissions="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
-        <category android:name="android.intent.category.BROWSABLE"/>
         <data android:mimeType="text/plain"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
         <data android:mimeType="image/jpeg"/>
-        <data android:mimeType="video/*"/>
-        <data android:mimeType="video/mp4"/>
-        <data android:mimeType="audio/*"/>
-        <data android:mimeType="application/*"/>
-        <data android:mimeType="*/*"/>
+        <data android:mimeType="image/png"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
-        <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:mimeType="text/plain"/>
         <data android:mimeType="image/*"/>
         <data android:mimeType="image/jpeg"/>
-        <data android:mimeType="video/*"/>
-        <data android:mimeType="video/mp4"/>
-        <data android:mimeType="audio/*"/>
-        <data android:mimeType="application/*"/>
-        <data android:mimeType="*/*"/>
+        <data android:mimeType="image/png"/>
+      </intent-filter>
+    </activity>
+    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivityCanary" android:exported="true" android:enabled="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="text/plain"/>
       </intent-filter>
     </activity>
   </application>

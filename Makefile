@@ -142,7 +142,7 @@ kill-metro:
 # To check if ShareMenuActivity is in the APK manifest:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "ShareMenuActivity"
 
-781
+
 # Run emulator from command:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\emulator\emulator.exe" -list-avds
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\emulator\emulator.exe" -avd Medium_Phone_API_36.1
@@ -310,3 +310,6 @@ kill-metro:
 # LogStep "Running expo prebuild (CI mode)..."
 # $env:CI="1"
 # npx expo prebuild --clean
+
+# adb push "D:\TestImages\Men1.jpg" /sdcard/Download/Men1.jpg
+# adb push "D:\TestImages\Men2.jpg" /sdcard/Download/Men2.jpg
