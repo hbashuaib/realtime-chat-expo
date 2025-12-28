@@ -52,6 +52,3 @@ app-example
 *.p12
 *.key
 *.mobileprovision
-
-# ShareMenuActivity.java
-android/app/src/main/java/com/anonymous/realtimechatexpo/ShareMenuActivity.java

@@ -22,15 +22,3 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
-
-
-// === share-menu sdk override start ===
-subprojects {
-  if (project.name == "react-native-share-menu" && project.hasProperty("android")) {
-    project.android.compileSdkVersion = 35
-    project.android.defaultConfig.targetSdkVersion = 35
-    project.android.defaultConfig.minSdkVersion = 24
-  }
-}
-// === share-menu sdk override end ===
-

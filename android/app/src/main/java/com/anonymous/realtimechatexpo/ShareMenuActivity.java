@@ -1,4 +1,3 @@
-
 package com.anonymous.realtimechatexpo;
 
 import android.content.Intent;

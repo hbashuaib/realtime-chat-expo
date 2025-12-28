@@ -70,7 +70,8 @@ export default {
       "./app.plugin.js",
 
       // ✅ Keep only one share‑menu plugin to avoid conflicts
-      "./plugins/withShareMenuFix.js",
+      //"./plugins/withShareMenuFix.custom.js",
+      "./plugins/withShareMenuLibrary.js",
     ],
 
     experiments: {

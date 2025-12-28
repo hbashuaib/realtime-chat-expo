@@ -113,6 +113,7 @@ kill-metro:
 # Install APK on emulator:
 # adb -s emulator-5554 install -r .\android\app\build\outputs\apk\debug\app-debug.apk
 
+# 	npx expo start --dev-client
 
 # adb logcat | findstr BashChatShare
 # or
@@ -135,6 +136,13 @@ kill-metro:
 # adb logcat | Select-String -Pattern "ShareMenuActivity|MainActivity|\[Inbound Share\]"
 
 # adb logcat | Select-String -Pattern "BashChatShare"
+
+# adb logcat | Select-String -Pattern "BashChatShare|MainActivity"
+
+# adb logcat | findstr "Inbound Share"
+
+# adb logcat | findstr "BashChatTest|MainActivity"
+
 
 
 # ./rebuild.ps1
@@ -313,3 +321,8 @@ kill-metro:
 
 # adb push "D:\TestImages\Men1.jpg" /sdcard/Download/Men1.jpg
 # adb push "D:\TestImages\Men2.jpg" /sdcard/Download/Men2.jpg
+
+# To test ShareMenuActivity from adb:
+# adb shell am start -n com.anonymous.realtimechatexpo/.ShareMenuActivity -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "Hello from adb test"
+
+# jar tf android/app/build/outputs/apk/debug/app-debug.apk | findstr ShareMenuActivity.class

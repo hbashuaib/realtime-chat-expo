@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.anonymous.realtimechatexpo">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
@@ -28,9 +28,10 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="realtimechatexpo"/>
+        <data android:scheme="exp+realtime-chat-expo"/>
       </intent-filter>
     </activity>
-    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:enabled="true" android:launchMode="singleTask" android:grantUriPermissions="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:enabled="true" android:label="BashChat Share" android:theme="@android:style/Theme.Translucent.NoTitleBar">
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
@@ -40,22 +41,11 @@
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
-        <data android:mimeType="image/jpeg"/>
-        <data android:mimeType="image/png"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
-        <data android:mimeType="image/jpeg"/>
-        <data android:mimeType="image/png"/>
-      </intent-filter>
-    </activity>
-    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivityCanary" android:exported="true" android:enabled="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
-      <intent-filter>
-        <action android:name="android.intent.action.SEND"/>
-        <category android:name="android.intent.category.DEFAULT"/>
-        <data android:mimeType="text/plain"/>
       </intent-filter>
     </activity>
   </application>
