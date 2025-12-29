@@ -89,45 +89,18 @@ switch ($choice) {
         LogStep "Running expo prebuild..."
         npx expo prebuild --clean
 
-        # Verify ShareMenuActivity.java exists before Gradle build
-        $shareMenuPath = "android\app\src\main\java\com\anonymous\realtimechatexpo\ShareMenuActivity.java"
-        if (-Not (Test-Path $shareMenuPath)) {
-            LogStep "ERROR: ShareMenuActivity.java not found after prebuild. Plugin may have failed."
-            exit 1
-        } else {
-            LogStep "Verified ShareMenuActivity.java exists: $shareMenuPath"
-        }
-
-        # Verify sourceSets injection landed
-        $gradlePath = "android\app\build.gradle"
-        $gradleHasSourceSets = (Select-String -Path $gradlePath -Pattern "sourceSets" -Quiet)
-        if (-Not $gradleHasSourceSets) {
-            LogStep "ERROR: sourceSets block missing in app/build.gradle after prebuild."
-            exit 1
-        } else {
-            LogStep "Confirmed sourceSets block present in app/build.gradle."
-        }
-
         # Verify gradlew exists
         if (-Not (Test-Path "android\gradlew.bat")) {
             LogStep "Gradle wrapper missing, regenerating..."
             npx expo prebuild --platform android
         }
 
-        # Safe Gradle clean and force recompile
-        LogStep "Running Gradle clean and build with forced recompile..."
+        # Safe Gradle clean
+        LogStep "Running Gradle clean and build..."
         Set-Location android
         & ".\gradlew.bat" clean -x externalNativeBuildCleanDebug
-        & ".\gradlew.bat" :app:assembleDebug --rerun-tasks
+        & ".\gradlew.bat" :app:assembleDebug
         Set-Location ..
-
-        # Post-build class verification
-        $compiledClass = "android\app\build\intermediates\javac\debug\classes\com\anonymous\realtimechatexpo\ShareMenuActivity.class"
-        if (Test-Path $compiledClass) {
-            LogStep "Compiled class found: $compiledClass"
-        } else {
-            LogStep "ERROR: Compiled class missing. ShareMenuActivity was not compiled."
-        }
     }
 
     "4" {

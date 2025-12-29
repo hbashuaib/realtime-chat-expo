@@ -46,6 +46,38 @@ function normalizeDefaultConfigBlock(content) {
   );
 }
 
+// NEW helper to inject AppCompat
+function ensureAppCompatDependency(content) {
+  if (content.includes('androidx.appcompat:appcompat')) return content;
+  return content.replace(
+    /implementation\("com.facebook.react:react-android"\)/,
+    `implementation("com.facebook.react:react-android")\n    implementation("androidx.appcompat:appcompat:1.6.1")`
+  );
+}
+
+// NEW helper to ensure sourceSets block exists
+function ensureSourceSets(content) {
+  if (content.includes('sourceSets {')) return content;
+  return content.replace(
+    /android\s*\{/,
+    `android {
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java']
+        }
+        debug {
+            java.srcDirs = ['src/main/java']
+        }
+        release {
+            java.srcDirs = ['src/main/java']
+        }
+    }
+
+    `
+  );
+}
+
+
 function patchAppBuildGradle(content) {
   let updated = content;
 
@@ -57,6 +89,12 @@ function patchAppBuildGradle(content) {
 
   // 3) Normalize defaultConfig (min/target)
   updated = normalizeDefaultConfigBlock(updated);
+
+  // 4) Ensure AppCompat is present
+  updated = ensureAppCompatDependency(updated);
+
+  // 5) Ensure sourceSets block exists
+  updated = ensureSourceSets(updated);
 
   return updated;
 }

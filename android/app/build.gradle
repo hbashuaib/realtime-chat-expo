@@ -82,6 +82,19 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java']
+        }
+        debug {
+            java.srcDirs = ['src/main/java']
+        }
+        release {
+            java.srcDirs = ['src/main/java']
+        }
+    }
+
+    
     ndkVersion rootProject.ext.ndkVersion
     compileSdkVersion 35
 
@@ -156,6 +169,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("androidx.appcompat:appcompat:1.6.1")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

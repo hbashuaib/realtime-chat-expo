@@ -326,3 +326,27 @@ kill-metro:
 # adb shell am start -n com.anonymous.realtimechatexpo/.ShareMenuActivity -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "Hello from adb test"
 
 # jar tf android/app/build/outputs/apk/debug/app-debug.apk | findstr ShareMenuActivity.class
+
+
+# Define source and destination
+# $srcApk = "android\app\build\outputs\apk\debug\app-debug.apk"
+# $destApk = "D:\app-debug.zip"
+
+# Copy and rename the APK to D:\ as a .zip
+# Copy-Item $srcApk $destApk -Force
+
+# Expand the archive into a folder
+# Expand-Archive -Path $destApk -DestinationPath "D:\apk_unpacked" -Force
+
+
+
+# New Rebuild Steps:
+# ./rebuild.ps1 - Full Build Option 3
+
+# cd android
+# .\gradlew.bat clean or .\gradlew.bat clean -x externalNativeBuildCleanDebug
+# .\gradlew.bat :app:compileDebugJavaWithJavac --rerun-tasks --info
+# cd ..
+
+
+
