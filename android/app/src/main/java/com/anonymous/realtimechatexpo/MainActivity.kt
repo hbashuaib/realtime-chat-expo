@@ -1,5 +1,6 @@
 package com.anonymous.realtimechatexpo
 import expo.modules.splashscreen.SplashScreenManager
+import android.content.Intent
 
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +14,12 @@ import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+        android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
+        android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
+        val intent = getIntent()
+        if (intent != null && intent.action != Intent.ACTION_MAIN) {
+          emitShareIntentToJS(intent)
+        }
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
@@ -62,4 +69,31 @@ class MainActivity : ReactActivity() {
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
+
+        override fun onNewIntent(intent: Intent) {
+          super.onNewIntent(intent)
+          setIntent(intent)
+          android.widget.Toast.makeText(this, "MainActivity received: $intent", android.widget.Toast.LENGTH_SHORT).show()
+          android.util.Log.e("BashChatTest", ">>> MainActivity onNewIntent fired with intent: $intent")
+          if (intent != null && intent.action == Intent.ACTION_MAIN) {
+            android.util.Log.e("BashChatTest", ">>> Ignoring immediate ACTION_MAIN relaunch to preserve share intent")
+            return
+          }
+          emitShareIntentToJS(intent)
+        }
+
+        private fun emitShareIntentToJS(intent: Intent) {
+          val manager = (application as com.facebook.react.ReactApplication)
+            .reactNativeHost
+            .reactInstanceManager
+          val context = manager.currentReactContext
+          if (context != null) {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (text != null) {
+              context
+                .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("onShareReceived", text)
+            }
+          }
+        }
 }

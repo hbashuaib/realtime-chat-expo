@@ -31,16 +31,22 @@
         <data android:scheme="exp+realtime-chat-expo"/>
       </intent-filter>
     </activity>
-    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:enabled="true" android:label="BashChat Share" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+    <activity android:name="com.anonymous.realtimechatexpo.ShareMenuActivity" android:exported="true" android:enabled="true" android:label="BashChat Share" android:theme="@android:style/Theme.NoDisplay" android:taskAffinity="" android:excludeFromRecents="true" android:launchMode="singleTask" android:grantUriPermissions="true" android:resizeableActivity="true">
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="text/plain"/>
+        <data android:mimeType="text/*"/>
+        <data android:mimeType="text/html"/>
+        <data android:mimeType="text/uri-list"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
+        <data android:mimeType="image/jpeg"/>
+        <data android:mimeType="image/png"/>
+        <data android:mimeType="image/webp"/>
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.SEND_MULTIPLE"/>

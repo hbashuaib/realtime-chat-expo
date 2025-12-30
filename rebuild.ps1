@@ -27,7 +27,6 @@ Get-Process -Name gradle -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process -Name java -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process -Name adb -ErrorAction SilentlyContinue | Stop-Process -Force
-# Removed 'code' so VS Code stays open
 
 # Step 3: Stop Gradle daemons if wrapper exists
 if (Test-Path "android\gradlew.bat") {
@@ -49,6 +48,11 @@ switch ($choice) {
         LogStep "Safe Build selected..."
         Set-Location android
         & ".\gradlew.bat" clean -x externalNativeBuildCleanDebug
+
+        LogStep "Running React Native codegen tasks..."
+        & ".\gradlew.bat" :app:generateCodegenSchemaFromJavaScript --rerun-tasks --info
+        & ".\gradlew.bat" :app:generateCodegenArtifactsFromSchema --rerun-tasks --info
+
         & ".\gradlew.bat" :app:assembleDebug
         Set-Location ..
     }
@@ -64,6 +68,7 @@ switch ($choice) {
         Remove-Item -Recurse -Force "android\.gradle" -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force "android\app\.cxx" -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force "android\app\build" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "android\app\build\generated\autolinking" -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force "android\build" -ErrorAction SilentlyContinue
 
         # Wipe Metro/Expo caches
@@ -106,6 +111,7 @@ switch ($choice) {
             exit 1
         } else {
             LogStep "Confirmed sourceSets block present in app/build.gradle."
+            Select-String -Path $gradlePath -Pattern "sourceSets" | ForEach-Object { LogStep "Found sourceSets line: $_" }
         }
 
         # Verify gradlew exists
@@ -114,19 +120,29 @@ switch ($choice) {
             npx expo prebuild --platform android
         }
 
+        # Run codegen tasks
+        LogStep "Running React Native codegen tasks..."
+        Set-Location android
+        & ".\gradlew.bat" :app:generateCodegenSchemaFromJavaScript --rerun-tasks --info
+        & ".\gradlew.bat" :app:generateCodegenArtifactsFromSchema --rerun-tasks --info
+
         # Safe Gradle clean and force recompile
         LogStep "Running Gradle clean and build with forced recompile..."
-        Set-Location android
         & ".\gradlew.bat" clean -x externalNativeBuildCleanDebug
         & ".\gradlew.bat" :app:assembleDebug --rerun-tasks
         Set-Location ..
 
         # Post-build class verification
-        $compiledClass = "android\app\build\intermediates\javac\debug\classes\com\anonymous\realtimechatexpo\ShareMenuActivity.class"
-        if (Test-Path $compiledClass) {
-            LogStep "Compiled class found: $compiledClass"
+        $compiledClassDir = "android\app\build\intermediates\javac\debug\classes\com\anonymous\realtimechatexpo"
+        if (Test-Path $compiledClassDir) {
+            Get-ChildItem $compiledClassDir | ForEach-Object { LogStep "Compiled: $($_.Name)" }
+            if (Test-Path "$compiledClassDir\ShareMenuActivity.class") {
+                LogStep "Compiled class found: $compiledClassDir\ShareMenuActivity.class"
+            } else {
+                LogStep "ERROR: Compiled class missing. ShareMenuActivity was not compiled."
+            }
         } else {
-            LogStep "ERROR: Compiled class missing. ShareMenuActivity was not compiled."
+            LogStep "ERROR: Compiled classes directory missing."
         }
     }
 
@@ -137,14 +153,20 @@ switch ($choice) {
         LogStep "Clearing Gradle/Expo caches..."
         Remove-Item -Recurse -Force -Path .expo, .expo-shared, node_modules\.cache -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force "android\app\build" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "android\app\build\generated\autolinking" -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force "android\build" -ErrorAction SilentlyContinue
 
         # Run Expo prebuild without wiping node_modules
         LogStep "Running expo prebuild..."
         npx expo prebuild
 
-        LogStep "Running Gradle clean and build..."
+        # Run codegen tasks
+        LogStep "Running React Native codegen tasks..."
         Set-Location android
+        & ".\gradlew.bat" :app:generateCodegenSchemaFromJavaScript --rerun-tasks --info
+        & ".\gradlew.bat" :app:generateCodegenArtifactsFromSchema --rerun-tasks --info
+
+        LogStep "Running Gradle clean and build..."
         & ".\gradlew.bat" clean -x externalNativeBuildCleanDebug
         & ".\gradlew.bat" :app:assembleDebug
         Set-Location ..

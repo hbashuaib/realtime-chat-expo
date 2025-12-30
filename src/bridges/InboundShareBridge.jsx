@@ -3,7 +3,8 @@ import useGlobal from "@/src/core/global";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect, useRef } from "react";
-import ShareMenu from "react-native-share-menu";
+import { DeviceEventEmitter } from "react-native";
+
 
 export default function InboundShareBridge({ onShare }) {
   const handledInitialRef = useRef(false);
@@ -12,14 +13,14 @@ export default function InboundShareBridge({ onShare }) {
   useEffect(() => {
     console.log("[Inbound Share] Bridge mounted");
 
-    const consume = async (item) => {
-      if (!item) return;
+    const consume = async (text) => {
+      if (!text) return;
       if (!handledInitialRef.current) {
         handledInitialRef.current = true;
       }
-      console.log("[Inbound Share] Raw item:", item);
+      console.log("[Inbound Share] Raw text:", text);
       try {
-        const payload = await toBashChatPayload(item);
+        const payload = { text: String(text).trim() };
         if (onShare) { onShare(payload); } else { addMessage(payload); }
         console.log("[Inbound Share] Payload:", payload);
       } catch (e) {
@@ -27,15 +28,10 @@ export default function InboundShareBridge({ onShare }) {
       }
     };
 
-    // Cold start: use promise API if supported
-    ShareMenu.getInitialShare((item) => {
-      if (!item || handledInitialRef.current) return;
-      handledInitialRef.current = true;
-      consume(item);
-    });
+    // Subscribe to native event emitted from MainActivity
+    const sub = DeviceEventEmitter.addListener("onShareReceived", consume);
 
-    const listener = ShareMenu.addNewShareListener(consume);
-    return () => listener.remove();
+    return () => sub.remove();
   }, [addMessage, onShare]);
 
   return null;
@@ -151,20 +147,3 @@ async function toBashChatPayload(item) {
 
   return { text: uri };
 }
-
-
-// // Cold start: use promise API if supported
-//     if (ShareMenu.getInitialShare?.length === 0) {
-//       ShareMenu.getInitialShare().then((item) => {
-//         if (!item || handledInitialRef.current) return;
-//         handledInitialRef.current = true;
-//         consume(item);
-//       });
-//     } else {
-//       // Callback fallback
-//       ShareMenu.getInitialShare((item) => {
-//         if (!item || handledInitialRef.current) return;
-//         handledInitialRef.current = true;
-//         consume(item);
-//       });
-//     }
