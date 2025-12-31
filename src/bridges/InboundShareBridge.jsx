@@ -2,35 +2,26 @@
 import useGlobal from "@/src/core/global";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { DeviceEventEmitter } from "react-native";
 
-
-export default function InboundShareBridge({ onShare }) {
-  const handledInitialRef = useRef(false);
+export default function InboundShareBridge({ onShare }) {  
   const addMessage = useGlobal((s) => s.addMessage);
 
   useEffect(() => {
-    console.log("[Inbound Share] Bridge mounted");
-
-    const consume = async (text) => {
-      if (!text) return;
-      if (!handledInitialRef.current) {
-        handledInitialRef.current = true;
-      }
-      console.log("[Inbound Share] Raw text:", text);
+    const consume = async (raw) => {
+      if (!raw) return;
+      console.log("[Inbound Share] Raw data:", raw);
       try {
-        const payload = { text: String(text).trim() };
+        const payload = await toBashChatPayload(raw);
         if (onShare) { onShare(payload); } else { addMessage(payload); }
         console.log("[Inbound Share] Payload:", payload);
       } catch (e) {
-        console.log("[Inbound Share] Error building payload:", e);
+        console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
       }
     };
 
-    // Subscribe to native event emitted from MainActivity
     const sub = DeviceEventEmitter.addListener("onShareReceived", consume);
-
     return () => sub.remove();
   }, [addMessage, onShare]);
 
@@ -67,23 +58,24 @@ function getFilenameFromUri(uri, fallback = "share") {
 }
 
 // Normalize shared item into your store payload
-async function toBashChatPayload(item) {
-  let mime = (item?.mimeType || "").toLowerCase();
-  const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
+async function toBashChatPayload(data) {
+  // If native emitted a plain string, treat it as text or URI
+  const uri = Array.isArray(data) ? data[0] : data;
+  let mime = "";
 
-  if (!mime && typeof uri === "string") {
+  if (typeof uri === "string") {
     mime = inferMimeFromUri(uri) || "";
   }
 
-  // Text
+  // Text case
   if (
     mime === "text/plain" ||
-    (typeof item?.data === "string" &&
+    (typeof data === "string" &&
       !mime.startsWith("image/") &&
       !mime.startsWith("video/") &&
       !mime.startsWith("audio/"))
   ) {
-    return { text: String(item.data || "").trim() };
+    return { text: String(data || "").trim() };
   }
 
   if (typeof uri !== "string" || uri.length === 0) {
@@ -98,16 +90,17 @@ async function toBashChatPayload(item) {
 
     if (/^https?:\/\//i.test(uri)) {
       // Remote URL → download
-      await FileSystem.downloadFileAsync(uri, cachePath);
+      await FileSystem.downloadAsync(uri, cachePath);
     } else {
       // Local content/file URI → copy
       const file = new File(uri);
       await file.copy(cachePath);
     }
 
-    base64 = await FileSystem.readAsStringAsync(cachePath, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    // Use new File API to read and encode
+    const file = new File(cachePath);
+    const buffer = await file.arrayBuffer();
+    base64 = Buffer.from(buffer).toString("base64");
   } catch (e) {
     console.log("[Share] Failed to load shared URI:", e);
   }

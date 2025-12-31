@@ -18,8 +18,6 @@ export default function RootLayout() {
   const activeFriend = useGlobal((s) => s.activeFriend);
   const activeConnectionId = useGlobal((s) => s.activeConnectionId);
 
-  const [shareConsumed, setShareConsumed] = useState(false);
-
   const [fontsLoaded] = useFonts({
     "LeckerliOne-Regular": require("@/src/assets/fonts/LeckerliOne-Regular.ttf"),
     "MontserratExtraBold": require("@/src/assets/fonts/Montserrat-ExtraBold.ttf"),
@@ -34,10 +32,18 @@ export default function RootLayout() {
 
   const currentTheme = theme[colorScheme];  
 
-  const [queuedPayload, setQueuedPayload] = useState<null | { kind: string; text?: string; uri?: string }>(null);
+  type SharePayload =
+  | { text: string }
+  | { image: string; filename?: string; base64?: string }
+  | { video_url: string; video_filename?: string; video?: string }
+  | { voice: string; filename: string; base64?: string };
+
+  type InboundPayload = SharePayload;
+
+  const [queuedPayload, setQueuedPayload] = useState<InboundPayload | null>(null);
 
   const handleInboundShare = useCallback(
-    (payload: null | { kind: string; text?: string; uri?: string }) => {
+    (payload: InboundPayload | null) => {
       console.log("[Inbound Share] Received:", payload);
       if (!payload) return;
       setQueuedPayload(payload);
@@ -66,7 +72,6 @@ export default function RootLayout() {
     setQueuedPayload(null);
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
 
-
   return (
     <>
       <InboundShareBridge onShare={handleInboundShare} />
@@ -88,30 +93,4 @@ export default function RootLayout() {
   );
   
 }
-
-
-
-
-// const handleInboundShare = useCallback(
-  //   (payload: null | { kind: string; text?: string; uri?: string }) => {
-  //     if (!payload || shareConsumed) return;
-  //     setShareConsumed(true);
-
-  //     if (!activeFriend || !activeConnectionId) {
-  //       console.warn("[Inbound Share] No active chat context");
-  //       router.replace("/(tabs)/Friends");
-  //       return;
-  //     }
-
-  //     router.replace({
-  //       pathname: "/Message",
-  //       params: {
-  //         id: String(activeConnectionId),
-  //         friend: JSON.stringify(activeFriend),
-  //       },
-  //     });
-  //   },
-  //   [shareConsumed, activeFriend, activeConnectionId]
-  // );
-
 

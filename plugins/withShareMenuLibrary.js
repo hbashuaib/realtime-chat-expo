@@ -142,11 +142,19 @@ function withNormalizeMainActivityViewFilters(config) {
 
 function withMainActivityLogging(config) {
   return withMainActivity(config, (cfg) => {
-    const src = cfg.modResults.contents;
+    let src = cfg.modResults.contents;
 
-    // Patch onCreate (Kotlin signature)
+    // 1) Ensure imports (right after package line)
+    if (!src.includes("import android.content.Intent")) {
+      src = src.replace(
+        /(package[^\n]*\n)/,
+        `$1import android.content.Intent\nimport android.net.Uri\nimport com.facebook.react.modules.core.DeviceEventManagerModule\nimport com.facebook.react.ReactApplication\nimport com.facebook.react.bridge.ReactContext\nimport com.facebook.react.ReactInstanceEventListener\n`
+      );
+    }
+
+    // 2) Patch onCreate (only once)
     if (!src.includes(">>> MainActivity onCreate")) {
-      cfg.modResults.contents = cfg.modResults.contents.replace(
+      src = src.replace(
         /override fun onCreate\(savedInstanceState: Bundle\?\) {/,
         `override fun onCreate(savedInstanceState: Bundle?) {
         android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
@@ -158,10 +166,12 @@ function withMainActivityLogging(config) {
       );
     }
 
-    // Ensure onNewIntent override exists (Kotlin style)
-    if (!src.includes("override fun onNewIntent")) {
-      cfg.modResults.contents = cfg.modResults.contents.replace(
-        /}\s*$/, // end of class
+    // 3) Inject onNewIntent + helper together, BEFORE the final class brace
+    const needsOnNewIntent = !src.includes("override fun onNewIntent");
+    const needsHelper = !src.includes("emitShareIntentToJS");
+    if (needsOnNewIntent || needsHelper) {
+      src = src.replace(
+        /(}\s*)$/, // final closing brace of the class
         `
         override fun onNewIntent(intent: Intent) {
           super.onNewIntent(intent)
@@ -174,40 +184,108 @@ function withMainActivityLogging(config) {
           }
           emitShareIntentToJS(intent)
         }
-}`
-      );
-    }
 
-    // Inject helper method if missing
-    if (!src.includes("emitShareIntentToJS")) {
-      if (!src.includes("import android.content.Intent")) {
-        cfg.modResults.contents = cfg.modResults.contents.replace(
-          /(package[^\n]*\n)/,
-          `$1import android.content.Intent\n`
-        );
-      }
+        private fun emitShareIntentToJS(intent: Intent?) {
+          if (intent == null) return
 
-      cfg.modResults.contents = cfg.modResults.contents.replace(
-        /}\s*$/, // end of class
-        `
-        private fun emitShareIntentToJS(intent: Intent) {
-          val manager = (application as com.facebook.react.ReactApplication)
+          val manager = (application as ReactApplication)
             .reactNativeHost
             .reactInstanceManager
           val context = manager.currentReactContext
-          if (context != null) {
-            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (text != null) {
-              context
-                .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("onShareReceived", text)
+
+          if (context == null) {
+            android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+            manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+              override fun onReactContextInitialized(readyContext: ReactContext) {
+                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, retrying share")
+                forwardIntentToJS(readyContext, intent)
+                // Remove listener after use to avoid duplicate calls
+                manager.removeReactInstanceEventListener(this)
+              }
+            })
+            if (!manager.hasStartedCreatingInitialContext()) {
+              manager.createReactContextInBackground()
+            }
+            return
+          }
+
+          forwardIntentToJS(context, intent)
+        }
+
+        private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+          val action = intent.action
+          val type = intent.type ?: ""
+
+          if (Intent.ACTION_SEND != action) {
+            android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+            return
+          }
+
+          when {
+            type.startsWith("text/") -> {
+              val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+              if (!sharedText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", sharedText)
+                return
+              }
+              val clip = intent.clipData
+              val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+              if (!clipText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", clipText.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
+            }
+
+            type.startsWith("image/") -> {
+              val imageUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              if (imageUri != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", imageUri.toString())
+                return
+              }
+              val clip = intent.clipData
+              val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+              if (uriFromClip != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", uriFromClip.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
+            }
+
+            else -> {
+              val clip = intent.clipData
+              val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+              val anyText = item?.text
+              val anyUri = item?.uri
+              if (!anyText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", anyText.toString())
+                return
+              }
+              if (anyUri != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", anyUri.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
             }
           }
         }
-}`
+$1`
       );
     }
 
+    cfg.modResults.contents = src;
     return cfg;
   });
 }

@@ -143,7 +143,16 @@ kill-metro:
 
 # adb logcat | findstr "BashChatTest|MainActivity"
 
+# adb logcat | Select-String "BashChatTest"
 
+# adb logcat -v time > full.log
+# >> Select-String -Path full.log -Pattern "BashChatTest|ShareMenuActivity|MainActivity"
+
+# adb logcat | findstr BashChatTest
+
+
+
+# 12879
 
 # ./rebuild.ps1
 

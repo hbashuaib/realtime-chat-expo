@@ -1,6 +1,11 @@
 package com.anonymous.realtimechatexpo
 import expo.modules.splashscreen.SplashScreenManager
 import android.content.Intent
+import android.net.Uri
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.ReactInstanceEventListener
 
 import android.os.Build
 import android.os.Bundle
@@ -82,17 +87,99 @@ class MainActivity : ReactActivity() {
           emitShareIntentToJS(intent)
         }
 
-        private fun emitShareIntentToJS(intent: Intent) {
-          val manager = (application as com.facebook.react.ReactApplication)
+        private fun emitShareIntentToJS(intent: Intent?) {
+          if (intent == null) return
+
+          val manager = (application as ReactApplication)
             .reactNativeHost
             .reactInstanceManager
           val context = manager.currentReactContext
-          if (context != null) {
-            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (text != null) {
-              context
-                .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("onShareReceived", text)
+
+          if (context == null) {
+            android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+            manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+              override fun onReactContextInitialized(readyContext: ReactContext) {
+                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, retrying share")
+                forwardIntentToJS(readyContext, intent)
+                // Remove listener after use to avoid duplicate calls
+                manager.removeReactInstanceEventListener(this)
+              }
+            })
+            if (!manager.hasStartedCreatingInitialContext()) {
+              manager.createReactContextInBackground()
+            }
+            return
+          }
+
+          forwardIntentToJS(context, intent)
+        }
+
+        private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+          val action = intent.action
+          val type = intent.type ?: ""
+
+          if (Intent.ACTION_SEND != action) {
+            android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+            return
+          }
+
+          when {
+            type.startsWith("text/") -> {
+              val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+              if (!sharedText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", sharedText)
+                return
+              }
+              val clip = intent.clipData
+              val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+              if (!clipText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", clipText.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
+            }
+
+            type.startsWith("image/") -> {
+              val imageUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              if (imageUri != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", imageUri.toString())
+                return
+              }
+              val clip = intent.clipData
+              val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+              if (uriFromClip != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", uriFromClip.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
+            }
+
+            else -> {
+              val clip = intent.clipData
+              val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+              val anyText = item?.text
+              val anyUri = item?.uri
+              if (!anyText.isNullOrEmpty()) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", anyText.toString())
+                return
+              }
+              if (anyUri != null) {
+                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("onShareReceived", anyUri.toString())
+                return
+              }
+              android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
             }
           }
         }

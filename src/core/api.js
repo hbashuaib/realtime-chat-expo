@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-const LOCAL_IP = '192.168.8.203'; // your LAN IP
+const LOCAL_IP = '192.168.8.204'; // your LAN IP
 
 // crude check: emulator devices often have "sdk" or "emulator" in model name
 function isEmulator() {
