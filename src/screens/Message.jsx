@@ -781,7 +781,6 @@ export default function MessageScreen() {
   }
 
 
-
   // async function downloadToCache(remoteUri, fallbackName, expectedMime) {
   //   const filename = getFilenameFromUri(remoteUri, fallbackName);
   //   const localPath = FileSystem.cacheDirectory + filename;
@@ -799,60 +798,56 @@ export default function MessageScreen() {
   //   return { url: fileUri, type };
   // }
 
+  // // Helper: normalize shared item into your messageSend payload
+  // // ✅ Normalize shared item into BashChat payload
+  // async function toBashChatPayload(item) {
+  //   const mime = (item?.mimeType || "").toLowerCase();
 
+  //   // Text or plain strings
+  //   if (mime === "text/plain" ||
+  //       (typeof item?.data === "string" &&
+  //       !mime.startsWith("image/") &&
+  //       !mime.startsWith("video/") &&
+  //       !mime.startsWith("audio/"))) {
+  //     return { kind: "text", text: String(item.data || "") };
+  //   }
 
-  // Helper: normalize shared item into your messageSend payload
-  // ✅ Normalize shared item into BashChat payload
-  async function toBashChatPayload(item) {
-    const mime = (item?.mimeType || "").toLowerCase();
+  //   const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
+  //   if (typeof uri !== "string" || uri.length === 0) {
+  //     return { kind: "text", text: "[Unsupported share payload]" };
+  //   }
 
-    // Text or plain strings
-    if (mime === "text/plain" ||
-        (typeof item?.data === "string" &&
-        !mime.startsWith("image/") &&
-        !mime.startsWith("video/") &&
-        !mime.startsWith("audio/"))) {
-      return { kind: "text", text: String(item.data || "") };
-    }
+  //   const filename = getFilenameFromUri(uri, "shared");
+  //   const cachePath = FileSystem.cacheDirectory + filename;
 
-    const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
-    if (typeof uri !== "string" || uri.length === 0) {
-      return { kind: "text", text: "[Unsupported share payload]" };
-    }
+  //   try {
+  //     // Normalize source into cache
+  //     await FileSystem.copyAsync({ from: uri, to: cachePath });
 
-    const filename = getFilenameFromUri(uri, "shared");
-    const cachePath = FileSystem.cacheDirectory + filename;
+  //     const base64 = await FileSystem.readAsStringAsync(cachePath, {
+  //       encoding: FileSystem.EncodingType.Base64,
+  //     });
 
-    try {
-      // Normalize source into cache
-      await FileSystem.copyAsync({ from: uri, to: cachePath });
+  //     if (!base64) return { kind: "text", text: "[Failed to load media]" };
 
-      const base64 = await FileSystem.readAsStringAsync(cachePath, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+  //     if (mime.startsWith("image/")) {
+  //       return { kind: "image", payload: { base64, filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg` } };
+  //     }
+  //     if (mime.startsWith("video/")) {
+  //       return { kind: "video", payload: { video: base64, video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`, video_url: uri } };
+  //     }
+  //     if (mime.startsWith("audio/")) {
+  //       const ext = filename.split(".").pop()?.toLowerCase();
+  //       const safeName = ["m4a", "aac", "mp3", "wav"].includes(ext) ? filename : `${filename}.m4a`;
+  //       return { kind: "voice", payload: { base64, filename: safeName, voice: uri } };
+  //     }
 
-      if (!base64) return { kind: "text", text: "[Failed to load media]" };
-
-      if (mime.startsWith("image/")) {
-        return { kind: "image", payload: { base64, filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg` } };
-      }
-      if (mime.startsWith("video/")) {
-        return { kind: "video", payload: { video: base64, video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`, video_url: uri } };
-      }
-      if (mime.startsWith("audio/")) {
-        const ext = filename.split(".").pop()?.toLowerCase();
-        const safeName = ["m4a", "aac", "mp3", "wav"].includes(ext) ? filename : `${filename}.m4a`;
-        return { kind: "voice", payload: { base64, filename: safeName, voice: uri } };
-      }
-
-      return { kind: "text", text: uri };
-    } catch (e) {
-      console.log("[Share] Failed to load shared URI:", e);
-      return { kind: "text", text: "[Failed to load media]" };
-    }
-  }
-
-
+  //     return { kind: "text", text: uri };
+  //   } catch (e) {
+  //     console.log("[Share] Failed to load shared URI:", e);
+  //     return { kind: "text", text: "[Failed to load media]" };
+  //   }
+  // }
 
 
   // async function toBashChatPayload(item) {

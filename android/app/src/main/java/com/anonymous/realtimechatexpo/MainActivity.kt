@@ -18,6 +18,8 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+    private var pendingShareIntent: Intent? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
         android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
         android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
@@ -75,6 +77,21 @@ class MainActivity : ReactActivity() {
       super.invokeDefaultOnBackPressed()
   }
 
+  override fun onResume() {
+    super.onResume()
+    val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+      val context = manager.currentReactContext
+      if (context != null && pendingShareIntent != null) {
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share")
+        forwardIntentToJS(context, pendingShareIntent!!)
+        pendingShareIntent = null
+      } else {
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: nothing to forward")
+      }
+    }, 500)
+  }
+
         override fun onNewIntent(intent: Intent) {
           super.onNewIntent(intent)
           setIntent(intent)
@@ -97,14 +114,39 @@ class MainActivity : ReactActivity() {
 
           if (context == null) {
             android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+            // retain intent so we can flush in onResume or when ReactContext initializes
+            pendingShareIntent = intent
+
             manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
               override fun onReactContextInitialized(readyContext: ReactContext) {
-                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, retrying share")
-                forwardIntentToJS(readyContext, intent)
-                // Remove listener after use to avoid duplicate calls
+                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
+
+                // Post a short delay so JS has time to mount InboundShareBridge
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                  val toForward = pendingShareIntent ?: intent
+                  if (toForward != null) {
+                    android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener)")
+                    forwardIntentToJS(readyContext, toForward)
+                    pendingShareIntent = null
+                  }
+                }, 1000) // 1 second delay
+
                 manager.removeReactInstanceEventListener(this)
               }
             })
+            
+            // Independent delayed check — forwards even if listener timing was missed
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+              val ready = manager.currentReactContext
+              if (ready != null && pendingShareIntent != null) {
+                android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (independent)")
+                forwardIntentToJS(ready, pendingShareIntent!!)
+                pendingShareIntent = null
+              } else {
+                android.util.Log.e("BashChatTest", ">>> Delayed flush: context still null or no pending intent")
+              }
+            }, 1500)
+
             if (!manager.hasStartedCreatingInitialContext()) {
               manager.createReactContextInBackground()
             }
@@ -144,7 +186,7 @@ class MainActivity : ReactActivity() {
             }
 
             type.startsWith("image/") -> {
-              val imageUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
               if (imageUri != null) {
                 android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
                 context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)

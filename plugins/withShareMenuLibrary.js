@@ -148,14 +148,30 @@ function withMainActivityLogging(config) {
     if (!src.includes("import android.content.Intent")) {
       src = src.replace(
         /(package[^\n]*\n)/,
-        `$1import android.content.Intent\nimport android.net.Uri\nimport com.facebook.react.modules.core.DeviceEventManagerModule\nimport com.facebook.react.ReactApplication\nimport com.facebook.react.bridge.ReactContext\nimport com.facebook.react.ReactInstanceEventListener\n`
+        `$1import android.content.Intent
+import android.net.Uri
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.ReactInstanceEventListener
+`
       );
     }
 
-    // 2) Patch onCreate (only once)
+    // 2) Inject a retained pending intent field (only once)
+    if (!src.includes("private var pendingShareIntent")) {
+      // Find the first opening brace of the class and insert the field immediately after
+      src = src.replace(
+        /(class\s+MainActivity[^{]*\{)/,
+        `$1\n    private var pendingShareIntent: Intent? = null\n`
+      );
+    }
+
+
+    // 3) Patch onCreate (only once)
     if (!src.includes(">>> MainActivity onCreate")) {
       src = src.replace(
-        /override fun onCreate\(savedInstanceState: Bundle\?\) {/,
+        /override fun onCreate\(savedInstanceState: Bundle\?\) \{/,
         `override fun onCreate(savedInstanceState: Bundle?) {
         android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
         android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
@@ -166,7 +182,30 @@ function withMainActivityLogging(config) {
       );
     }
 
-    // 3) Inject onNewIntent + helper together, BEFORE the final class brace
+    // 4) Inject onResume safety flush (only once)
+    if (!src.includes("onResume flush: forwarding pending share")) {
+      src = src.replace(
+        /(}\s*)$/, // before final class brace
+        `
+  override fun onResume() {
+    super.onResume()
+    val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+      val context = manager.currentReactContext
+      if (context != null && pendingShareIntent != null) {
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share")
+        forwardIntentToJS(context, pendingShareIntent!!)
+        pendingShareIntent = null
+      } else {
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: nothing to forward")
+      }
+    }, 500)
+  }
+$1`
+      );
+    }
+
+    // 5) Inject onNewIntent + helper together, BEFORE the final class brace
     const needsOnNewIntent = !src.includes("override fun onNewIntent");
     const needsHelper = !src.includes("emitShareIntentToJS");
     if (needsOnNewIntent || needsHelper) {
@@ -195,14 +234,39 @@ function withMainActivityLogging(config) {
 
           if (context == null) {
             android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+            // retain intent so we can flush in onResume or when ReactContext initializes
+            pendingShareIntent = intent
+
             manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
               override fun onReactContextInitialized(readyContext: ReactContext) {
-                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, retrying share")
-                forwardIntentToJS(readyContext, intent)
-                // Remove listener after use to avoid duplicate calls
+                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
+
+                // Post a short delay so JS has time to mount InboundShareBridge
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                  val toForward = pendingShareIntent ?: intent
+                  if (toForward != null) {
+                    android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener)")
+                    forwardIntentToJS(readyContext, toForward)
+                    pendingShareIntent = null
+                  }
+                }, 1000) // 1 second delay
+
                 manager.removeReactInstanceEventListener(this)
               }
             })
+            
+            // Independent delayed check — forwards even if listener timing was missed
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+              val ready = manager.currentReactContext
+              if (ready != null && pendingShareIntent != null) {
+                android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (independent)")
+                forwardIntentToJS(ready, pendingShareIntent!!)
+                pendingShareIntent = null
+              } else {
+                android.util.Log.e("BashChatTest", ">>> Delayed flush: context still null or no pending intent")
+              }
+            }, 1500)
+
             if (!manager.hasStartedCreatingInitialContext()) {
               manager.createReactContextInBackground()
             }
@@ -242,7 +306,7 @@ function withMainActivityLogging(config) {
             }
 
             type.startsWith("image/") -> {
-              val imageUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
               if (imageUri != null) {
                 android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
                 context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -289,6 +353,7 @@ $1`
     return cfg;
   });
 }
+
 
 // Create ShareMenuActivity.java earlier so Gradle compiles it
 function withShareMenuActivityJava(config) {

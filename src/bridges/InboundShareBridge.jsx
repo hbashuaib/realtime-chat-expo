@@ -1,5 +1,6 @@
 // src/bridges/InboundShareBridge.jsx
 import useGlobal from "@/src/core/global";
+import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
@@ -9,7 +10,29 @@ export default function InboundShareBridge({ onShare }) {
   const addMessage = useGlobal((s) => s.addMessage);
 
   useEffect(() => {
+    console.log("[Inbound Share] JS listener mounted");
+
     const consume = async (raw) => {
+      // Defensive: log everything that arrives
+      console.log("[Inbound Share] Event received:", raw, typeof raw);
+
+      // Strings → { text }
+      if (typeof raw === "string") {
+        const payload = { text: raw.trim() };
+        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        console.log("[Inbound Share] Payload:", payload);
+        return;
+      }
+
+      // Guard: some RN bridges wrap values as { nativeEvent: ... }
+      if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
+        const payload = { text: raw.nativeEvent.trim() };
+        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        console.log("[Inbound Share] Payload(nativeEvent):", payload);
+        return;
+      }
+
+      // Fallback to full normalization
       if (!raw) return;
       console.log("[Inbound Share] Raw data:", raw);
       try {
@@ -21,8 +44,11 @@ export default function InboundShareBridge({ onShare }) {
       }
     };
 
-    const sub = DeviceEventEmitter.addListener("onShareReceived", consume);
+    // Subscribe to both emitters to avoid wiring differences in RN/Expo
+    const subDevice = DeviceEventEmitter.addListener("onShareReceived", consume);
+        
     return () => sub.remove();
+
   }, [addMessage, onShare]);
 
   return null;
@@ -48,6 +74,7 @@ function inferMimeFromUri(uri) {
   }
 }
 
+
 function getFilenameFromUri(uri, fallback = "share") {
   try {
     const last = uri.split("?")[0].split("/").pop();
@@ -59,6 +86,11 @@ function getFilenameFromUri(uri, fallback = "share") {
 
 // Normalize shared item into your store payload
 async function toBashChatPayload(data) {
+  // Explicit early return for plain strings
+  if (typeof data === "string") {
+    return { text: data.trim() };
+  }
+
   // If native emitted a plain string, treat it as text or URI
   const uri = Array.isArray(data) ? data[0] : data;
   let mime = "";
@@ -67,7 +99,7 @@ async function toBashChatPayload(data) {
     mime = inferMimeFromUri(uri) || "";
   }
 
-  // Text case
+  // Text case: normalize to { text }
   if (
     mime === "text/plain" ||
     (typeof data === "string" &&
@@ -78,6 +110,7 @@ async function toBashChatPayload(data) {
     return { text: String(data || "").trim() };
   }
 
+  // Empty/unsupported
   if (typeof uri !== "string" || uri.length === 0) {
     return { text: "[Unsupported share payload]" };
   }
@@ -89,8 +122,9 @@ async function toBashChatPayload(data) {
     const cachePath = FileSystem.cacheDirectory + filename;
 
     if (/^https?:\/\//i.test(uri)) {
-      // Remote URL → download
-      await FileSystem.downloadAsync(uri, cachePath);
+      // Remote URL → download using new File API
+      const file = new File(cachePath);
+      await file.downloadFileAsync(uri);
     } else {
       // Local content/file URI → copy
       const file = new File(uri);
