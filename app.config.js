@@ -33,7 +33,11 @@ export default {
         "VIBRATE",
       ],
 
-      // ❌ No intentFilters here — Expo auto‑generates VIEW filters from 'scheme'
+      // Adaptive icon definition prevents ic_launcher_round errors
+      adaptiveIcon: {
+        foregroundImage: "./assets/images/icon.png",
+        backgroundColor: "#FFFFFF",
+      },
     },
 
     web: {
@@ -72,6 +76,7 @@ export default {
       // ✅ Keep only one share‑menu plugin to avoid conflicts
       //"./plugins/withShareMenuFix.custom.js",
       "./plugins/withShareMenuLibrary.js",
+      "./plugins/withIconBackground.js",
     ],
 
     experiments: {

@@ -45,6 +45,7 @@ function withInjectLibraryShareActivity(config) {
         "android:exported": "true",
         "android:enabled": "true",
         "android:label": SHARE_LABEL,
+        "android:icon": "@mipmap/ic_launcher", 
         "android:theme": "@android:style/Theme.NoDisplay",
         "android:taskAffinity": "",
         "android:excludeFromRecents": "true",
@@ -84,6 +85,44 @@ function withInjectLibraryShareActivity(config) {
       ],
     });
 
+    return cfg;
+  });
+}
+
+function withNormalizeAppIcon(config) {
+  return withAndroidManifest(config, (cfg) => {
+    const app = cfg.modResults.manifest.application?.[0];
+    if (app && app.$) {
+      // Ensure application icon points to a guaranteed resource
+      app.$["android:icon"] = "@mipmap/ic_launcher";
+
+      // Remove or normalize round icon to avoid missing resource failures
+      // Option 1: remove the attribute entirely
+      delete app.$["android:roundIcon"];
+
+      // Option 2 (alternative): set roundIcon to the same launcher icon
+      // app.$["android:roundIcon"] = "@mipmap/ic_launcher";
+    }
+    return cfg;
+  });
+}
+
+function withScrubMissingRoundIcon(config) {
+  return withAndroidManifest(config, (cfg) => {
+    const app = cfg.modResults.manifest.application?.[0];
+    if (app?.$) {
+      const round = app.$["android:roundIcon"];
+      if (round && round.includes("ic_launcher_round")) {
+        delete app.$["android:roundIcon"];
+      }
+    }
+    // Also scrub any activity icons referencing ic_launcher_round (rare)
+    const activities = cfg.modResults.manifest.application?.[0]?.activity || [];
+    activities.forEach((act) => {
+      if (act.$?.["android:icon"]?.includes("ic_launcher_round")) {
+        act.$["android:icon"] = "@mipmap/ic_launcher";
+      }
+    });
     return cfg;
   });
 }
@@ -139,12 +178,11 @@ function withNormalizeMainActivityViewFilters(config) {
   });
 }
 
-
 function withMainActivityLogging(config) {
   return withMainActivity(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // 1) Ensure imports (right after package line)
+    // 1) Ensure imports (right after package line) — add missing imports cleanly, no leading spaces
     if (!src.includes("import android.content.Intent")) {
       src = src.replace(
         /(package[^\n]*\n)/,
@@ -154,198 +192,225 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.ReactInstanceEventListener
+import com.anonymous.realtimechatexpo.R
+import com.anonymous.realtimechatexpo.BuildConfig
+
 `
       );
     }
 
-    // 2) Inject a retained pending intent field (only once)
+    // Ensure Bundle is present only once
+    if (!src.includes("import android.os.Bundle")) {
+      src = src.replace(
+        /(package[^\n]*\n)/,
+        `$1import android.os.Bundle
+`
+      );
+    }
+
+    // 2) Inject retained intent fields (instance + static backup)
     if (!src.includes("private var pendingShareIntent")) {
-      // Find the first opening brace of the class and insert the field immediately after
       src = src.replace(
         /(class\s+MainActivity[^{]*\{)/,
-        `$1\n    private var pendingShareIntent: Intent? = null\n`
+        `$1
+  private var pendingShareIntent: Intent? = null
+  companion object {
+    var pendingShareStatic: Intent? = null
+  }
+`
       );
     }
 
-
-    // 3) Patch onCreate (only once)
+    // 3) Patch onCreate (preserve setTheme + super.onCreate(null))
     if (!src.includes(">>> MainActivity onCreate")) {
       src = src.replace(
-        /override fun onCreate\(savedInstanceState: Bundle\?\) \{/,
-        `override fun onCreate(savedInstanceState: Bundle?) {
-        android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
-        android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
-        val intent = getIntent()
-        if (intent != null && intent.action != Intent.ACTION_MAIN) {
-          emitShareIntentToJS(intent)
-        }`
+        /override fun onCreate\(savedInstanceState: Bundle\?\) \{([\s\S]*?)\n\s*super\.onCreate\(null\)\n\s*\}/,
+        `override fun onCreate(savedInstanceState: Bundle?) {$1
+  // >>> MainActivity onCreate injected
+  android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
+  android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
+  val intent = getIntent()
+  if (intent != null && intent.action != Intent.ACTION_MAIN) {
+    emitShareIntentToJS(intent)
+  }
+  super.onCreate(null)
+}`
       );
     }
 
-    // 4) Inject onResume safety flush (only once)
-    if (!src.includes("onResume flush: forwarding pending share")) {
+    // 4) Inject onResume safety flush (only once) — end with single class brace
+    if (!src.includes(">>> onResume delayed flush")) {
       src = src.replace(
-        /(}\s*)$/, // before final class brace
+        /\n}\s*$/,
         `
   override fun onResume() {
     super.onResume()
     val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
       val context = manager.currentReactContext
-      if (context != null && pendingShareIntent != null) {
+      val toForward = pendingShareIntent ?: pendingShareStatic
+      if (context != null && toForward != null) {
         android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share")
-        forwardIntentToJS(context, pendingShareIntent!!)
+        forwardIntentToJS(context, toForward)
         pendingShareIntent = null
+        pendingShareStatic = null
       } else {
         android.util.Log.e("BashChatTest", ">>> onResume delayed flush: nothing to forward")
       }
     }, 500)
   }
-$1`
+
+}
+`
       );
     }
 
-    // 5) Inject onNewIntent + helper together, BEFORE the final class brace
-    const needsOnNewIntent = !src.includes("override fun onNewIntent");
-    const needsHelper = !src.includes("emitShareIntentToJS");
-    if (needsOnNewIntent || needsHelper) {
+    // 5) Inject onNewIntent + helpers before final class brace — end with single class brace
+    const needsOnNewIntent = !src.includes("override fun onNewIntent(");
+    const needsHelperEmit = !src.includes("private fun emitShareIntentToJS(");
+    const needsHelperForward = !src.includes("private fun forwardIntentToJS(");
+
+    if (needsOnNewIntent || needsHelperEmit || needsHelperForward) {
       src = src.replace(
-        /(}\s*)$/, // final closing brace of the class
+        /\n}\s*$/,
         `
-        override fun onNewIntent(intent: Intent) {
-          super.onNewIntent(intent)
-          setIntent(intent)
-          android.widget.Toast.makeText(this, "MainActivity received: $intent", android.widget.Toast.LENGTH_SHORT).show()
-          android.util.Log.e("BashChatTest", ">>> MainActivity onNewIntent fired with intent: $intent")
-          if (intent != null && intent.action == Intent.ACTION_MAIN) {
-            android.util.Log.e("BashChatTest", ">>> Ignoring immediate ACTION_MAIN relaunch to preserve share intent")
-            return
-          }
-          emitShareIntentToJS(intent)
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    android.widget.Toast.makeText(this, "MainActivity received: $intent", android.widget.Toast.LENGTH_SHORT).show()
+    android.util.Log.e("BashChatTest", ">>> MainActivity onNewIntent fired with intent: $intent")
+    if (intent != null && intent.action == Intent.ACTION_MAIN) {
+      android.util.Log.e("BashChatTest", ">>> Ignoring immediate ACTION_MAIN relaunch to preserve share intent")
+      return
+    }
+    emitShareIntentToJS(intent)
+  }
+
+  private fun emitShareIntentToJS(intent: Intent?) {
+    if (intent == null) return
+
+    val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+    val context = manager.currentReactContext
+
+    if (context == null) {
+      android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+      pendingShareIntent = intent
+      pendingShareStatic = intent
+
+      manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+        override fun onReactContextInitialized(readyContext: ReactContext) {
+          android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
+          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            val toForward = pendingShareIntent ?: pendingShareStatic
+            if (toForward != null) {
+              android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener, 2500ms)")
+              forwardIntentToJS(readyContext, toForward)
+              pendingShareIntent = null
+              pendingShareStatic = null
+            }
+          }, 2500)
+          manager.removeReactInstanceEventListener(this)
         }
+      })
 
-        private fun emitShareIntentToJS(intent: Intent?) {
-          if (intent == null) return
+      // Force-create React context unconditionally
+      android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
+      try {
+        manager.createReactContextInBackground()
+      } catch (e: Exception) {
+        android.util.Log.e("BashChatTest", "!!! Failed to create React context: \${e.message}", e)
+      }
 
-          val manager = (application as ReactApplication)
-            .reactNativeHost
-            .reactInstanceManager
-          val context = manager.currentReactContext
-
-          if (context == null) {
-            android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
-            // retain intent so we can flush in onResume or when ReactContext initializes
-            pendingShareIntent = intent
-
-            manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-              override fun onReactContextInitialized(readyContext: ReactContext) {
-                android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
-
-                // Post a short delay so JS has time to mount InboundShareBridge
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                  val toForward = pendingShareIntent ?: intent
-                  if (toForward != null) {
-                    android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener)")
-                    forwardIntentToJS(readyContext, toForward)
-                    pendingShareIntent = null
-                  }
-                }, 1000) // 1 second delay
-
-                manager.removeReactInstanceEventListener(this)
-              }
-            })
-            
-            // Independent delayed check — forwards even if listener timing was missed
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-              val ready = manager.currentReactContext
-              if (ready != null && pendingShareIntent != null) {
-                android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (independent)")
-                forwardIntentToJS(ready, pendingShareIntent!!)
-                pendingShareIntent = null
-              } else {
-                android.util.Log.e("BashChatTest", ">>> Delayed flush: context still null or no pending intent")
-              }
-            }, 1500)
-
-            if (!manager.hasStartedCreatingInitialContext()) {
-              manager.createReactContextInBackground()
-            }
-            return
-          }
-
-          forwardIntentToJS(context, intent)
-        }
-
-        private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
-          val action = intent.action
-          val type = intent.type ?: ""
-
-          if (Intent.ACTION_SEND != action) {
-            android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
-            return
-          }
-
-          when {
-            type.startsWith("text/") -> {
-              val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-              if (!sharedText.isNullOrEmpty()) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", sharedText)
-                return
-              }
-              val clip = intent.clipData
-              val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-              if (!clipText.isNullOrEmpty()) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", clipText.toString())
-                return
-              }
-              android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
-            }
-
-            type.startsWith("image/") -> {
-              val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-              if (imageUri != null) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", imageUri.toString())
-                return
-              }
-              val clip = intent.clipData
-              val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
-              if (uriFromClip != null) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", uriFromClip.toString())
-                return
-              }
-              android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
-            }
-
-            else -> {
-              val clip = intent.clipData
-              val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
-              val anyText = item?.text
-              val anyUri = item?.uri
-              if (!anyText.isNullOrEmpty()) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", anyText.toString())
-                return
-              }
-              if (anyUri != null) {
-                android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("onShareReceived", anyUri.toString())
-                return
-              }
-              android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
-            }
+      // Fallback recreate if still null at ~3500ms
+      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        if (manager.currentReactContext == null) {
+          android.util.Log.e("BashChatTest", ">>> Recreating React context in background (fallback)")
+          try {
+            manager.recreateReactContextInBackground()
+          } catch (e: Exception) {
+            android.util.Log.e("BashChatTest", "!!! Failed to recreate React context: \${e.message}", e)
           }
         }
-$1`
+      }, 3500)
+
+      return
+    }
+
+    forwardIntentToJS(context, intent)
+  }
+
+  private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+    val action = intent.action
+    val type = intent.type ?: ""
+
+    if (Intent.ACTION_SEND != action) {
+      android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+      return
+    }
+
+    when {
+      type.startsWith("text/") -> {
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (!sharedText.isNullOrEmpty()) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", sharedText)
+          return
+        }
+        val clip = intent.clipData
+        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+        if (!clipText.isNullOrEmpty()) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", clipText.toString())
+          return
+        }
+        android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
+      }
+
+      type.startsWith("image/") -> {
+        val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        if (imageUri != null) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", imageUri.toString())
+          return
+        }
+        val clip = intent.clipData
+        val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+        if (uriFromClip != null) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", uriFromClip.toString())
+          return
+        }
+        android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
+      }
+
+      else -> {
+        val clip = intent.clipData
+        val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+        val anyText = item?.text
+        val anyUri = item?.uri
+        if (!anyText.isNullOrEmpty()) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", anyText.toString())
+          return
+        }
+        if (anyUri != null) {
+          android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", anyUri.toString())
+          return
+        }
+        android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
+      }
+    }
+  }
+
+}
+`
       );
     }
 
@@ -494,5 +559,8 @@ module.exports = function withShareMenuLibrary(config) {
   config = withNoOpMainActivity(config);  
   config = withMainActivityLogging(config);
   config = withShareMenuActivityJava(config);
+  config = withNormalizeAppIcon(config);
+  config = withScrubMissingRoundIcon(config);
+
   return config;
 };

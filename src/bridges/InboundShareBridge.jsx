@@ -4,7 +4,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { DeviceEventEmitter } from "react-native";
+import { NativeEventEmitter, NativeModules, DeviceEventEmitter } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {  
   const addMessage = useGlobal((s) => s.addMessage);
@@ -44,10 +44,13 @@ export default function InboundShareBridge({ onShare }) {
       }
     };
 
-    // Subscribe to both emitters to avoid wiring differences in RN/Expo
-    const subDevice = DeviceEventEmitter.addListener("onShareReceived", consume);
-        
-    return () => sub.remove();
+    // Canonical binding: listen only via NativeEventEmitter(DeviceEventManagerModule)
+    const nativeEmitter = new NativeEventEmitter(NativeModules.DeviceEventManagerModule);
+    const subNative = nativeEmitter.addListener("onShareReceived", consume);
+
+    return () => {
+      try { subNative.remove(); } catch {}
+    };
 
   }, [addMessage, onShare]);
 
