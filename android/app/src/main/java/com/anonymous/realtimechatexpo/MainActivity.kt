@@ -90,10 +90,10 @@ class MainActivity : ReactActivity() {
       val context = manager.currentReactContext
       val toForward = pendingShareIntent ?: pendingShareStatic
       if (context != null && toForward != null) {
-        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share")
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share (retain static)")
         forwardIntentToJS(context, toForward)
-        pendingShareIntent = null
-        pendingShareStatic = null
+        pendingShareIntent = null    
+        // ❌ Do not clear pendingShareStatic here    
       } else {
         android.util.Log.e("BashChatTest", ">>> onResume delayed flush: nothing to forward")
       }
@@ -125,16 +125,29 @@ class MainActivity : ReactActivity() {
 
       manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
         override fun onReactContextInitialized(readyContext: ReactContext) {
-          android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
-          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+          android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
+          val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+          handler.postDelayed({
             val toForward = pendingShareIntent ?: pendingShareStatic
+            android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward != null) {
-              android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener, 2500ms)")
               forwardIntentToJS(readyContext, toForward)
               pendingShareIntent = null
-              pendingShareStatic = null
+              // ❌ Keep static for secondary attempt
             }
           }, 2500)
+
+          handler.postDelayed({
+            val toForward2 = pendingShareIntent ?: pendingShareStatic
+            android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+            if (toForward2 != null) {
+              forwardIntentToJS(readyContext, toForward2)
+              pendingShareIntent = null
+              pendingShareStatic = null // ✅ finally clear static
+            }
+          }, 5000)
+
           manager.removeReactInstanceEventListener(this)
         }
       })
@@ -179,6 +192,8 @@ class MainActivity : ReactActivity() {
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         if (!sharedText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+          // TEXT via EXTRA_TEXT
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(sharedText)
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", sharedText)
           return
@@ -187,6 +202,8 @@ class MainActivity : ReactActivity() {
         val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
         if (!clipText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+          // TEXT via ClipData
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(clipText.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", clipText.toString())
           return
@@ -198,6 +215,8 @@ class MainActivity : ReactActivity() {
         val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
         if (imageUri != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+          // IMAGE via EXTRA_STREAM
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(imageUri.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", imageUri.toString())
           return
@@ -206,6 +225,8 @@ class MainActivity : ReactActivity() {
         val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
         if (uriFromClip != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+          // IMAGE via ClipData
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(uriFromClip.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", uriFromClip.toString())
           return
@@ -220,12 +241,16 @@ class MainActivity : ReactActivity() {
         val anyUri = item?.uri
         if (!anyText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+          // FALLBACK TEXT
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyText.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", anyText.toString())
           return
         }
         if (anyUri != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+          // FALLBACK URI
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyUri.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", anyUri.toString())
           return

@@ -150,6 +150,11 @@ kill-metro:
 
 # adb logcat | findstr BashChatTest
 
+# adb logcat -s BashChatTest ReactNativeJS ReactNative
+
+
+# npx expo run:android --variant release
+# npx expo start
 
 
 # 12879
@@ -357,5 +362,12 @@ kill-metro:
 # .\gradlew.bat :app:compileDebugJavaWithJavac --rerun-tasks --info
 # cd ..
 
+# New rebuild for release version (No Metro)
+# npx expo run:android --variant release
+
+# adb install android/app/build/outputs/apk/release/app-release.apk
+
+# Nginx Server:
+# PS C:\tools\nginx-1.29.4> .\nginx.exe
 
 

@@ -250,10 +250,10 @@ import com.anonymous.realtimechatexpo.BuildConfig
       val context = manager.currentReactContext
       val toForward = pendingShareIntent ?: pendingShareStatic
       if (context != null && toForward != null) {
-        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share")
+        android.util.Log.e("BashChatTest", ">>> onResume delayed flush: forwarding pending share (retain static)")
         forwardIntentToJS(context, toForward)
-        pendingShareIntent = null
-        pendingShareStatic = null
+        pendingShareIntent = null    
+        // ❌ Do not clear pendingShareStatic here    
       } else {
         android.util.Log.e("BashChatTest", ">>> onResume delayed flush: nothing to forward")
       }
@@ -299,16 +299,29 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
       manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
         override fun onReactContextInitialized(readyContext: ReactContext) {
-          android.util.Log.e("BashChatTest", ">>> ReactContext became ready, scheduling share flush")
-          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+          android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
+          val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+          handler.postDelayed({
             val toForward = pendingShareIntent ?: pendingShareStatic
+            android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward != null) {
-              android.util.Log.e("BashChatTest", ">>> Delayed flush: forwarding pending share (listener, 2500ms)")
               forwardIntentToJS(readyContext, toForward)
               pendingShareIntent = null
-              pendingShareStatic = null
+              // ❌ Keep static for secondary attempt
             }
           }, 2500)
+
+          handler.postDelayed({
+            val toForward2 = pendingShareIntent ?: pendingShareStatic
+            android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+            if (toForward2 != null) {
+              forwardIntentToJS(readyContext, toForward2)
+              pendingShareIntent = null
+              pendingShareStatic = null // ✅ finally clear static
+            }
+          }, 5000)
+
           manager.removeReactInstanceEventListener(this)
         }
       })
@@ -353,6 +366,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         if (!sharedText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+          // TEXT via EXTRA_TEXT
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(sharedText)
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", sharedText)
           return
@@ -361,6 +376,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
         if (!clipText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+          // TEXT via ClipData
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(clipText.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", clipText.toString())
           return
@@ -372,6 +389,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
         if (imageUri != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+          // IMAGE via EXTRA_STREAM
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(imageUri.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", imageUri.toString())
           return
@@ -380,6 +399,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
         if (uriFromClip != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+          // IMAGE via ClipData
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(uriFromClip.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", uriFromClip.toString())
           return
@@ -394,12 +415,16 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val anyUri = item?.uri
         if (!anyText.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+          // FALLBACK TEXT
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyText.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", anyText.toString())
           return
         }
         if (anyUri != null) {
           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+          // FALLBACK URI
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyUri.toString())
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit("onShareReceived", anyUri.toString())
           return
@@ -417,6 +442,153 @@ import com.anonymous.realtimechatexpo.BuildConfig
     cfg.modResults.contents = src;
     return cfg;
   });
+}
+
+
+function withBashShareNativeModule(config) {
+  return withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const srcDir = path.join(
+        cfg.modRequest.projectRoot,
+        "android",
+        "app",
+        "src",
+        "main",
+        "java",
+        "com",
+        "anonymous",
+        "realtimechatexpo"
+      );
+      fs.mkdirSync(srcDir, { recursive: true });
+
+      const modulePath = path.join(srcDir, "BashShareModule.kt");
+      const packagePath = path.join(srcDir, "BashSharePackage.kt");
+
+      const moduleCode = `package com.anonymous.realtimechatexpo
+
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.Promise
+
+object BashShareQueue {
+  @Volatile private var pending: String? = null
+
+  fun setPending(value: String?) {
+    pending = value
+  }
+
+  fun consume(): String? {
+    val v = pending
+    pending = null
+    return v
+  }
+}
+
+class BashShareModule(reactContext: ReactApplicationContext) :
+  ReactContextBaseJavaModule(reactContext) {
+
+  override fun getName(): String = "BashShareModule"
+
+  @ReactMethod
+  fun consumePendingShare(promise: Promise) {
+    try {
+      val v = BashShareQueue.consume()
+      if (v == null) {
+        promise.resolve(null)
+      } else {
+        promise.resolve(v)
+      }
+    } catch (e: Exception) {
+      promise.reject("ERR_CONSUME_PENDING", e)
+    }
+  }
+}
+`;
+
+      const packageCode = `package com.anonymous.realtimechatexpo
+
+import com.facebook.react.ReactPackage
+import com.facebook.react.bridge.NativeModule
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.uimanager.ViewManager
+
+class BashSharePackage : ReactPackage {
+  override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
+    return listOf(BashShareModule(reactContext))
+  }
+
+  override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
+    return emptyList()
+  }
+}
+`;
+
+      fs.writeFileSync(modulePath, moduleCode);
+      fs.writeFileSync(packagePath, packageCode);
+      console.log("✅ Injected BashShareModule.kt and BashSharePackage.kt");
+      return cfg;
+    },
+  ]);
+}
+
+
+function withRegisterBashSharePackage(config) {
+  return withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const appPath = path.join(
+        cfg.modRequest.projectRoot,
+        "android",
+        "app",
+        "src",
+        "main",
+        "java",
+        "com",
+        "anonymous",
+        "realtimechatexpo",
+        "MainApplication.kt"
+      );
+      if (!fs.existsSync(appPath)) return cfg;
+
+      let src = fs.readFileSync(appPath, "utf8");
+
+      // Ensure import
+      if (!src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")) {
+        src = src.replace(
+          /(package[^\n]*\n)/,
+          `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`
+        );
+      }
+
+      // Register package inside getPackages() or packages list
+      // Handle new arch (apply block) and classic lists defensively
+      if (!src.includes("BashSharePackage()")) {
+        // New arch style: PackageList(this).packages.apply { … }
+        src = src.replace(
+          /(PackageList\(this\)\.packages\.apply\s*\{)/,
+          `$1\n      add(BashSharePackage())`
+        );
+
+        // Classic listOf style
+        src = src.replace(
+          /(packages\s*=\s*listOf\([^\)]*)\)/,
+          `$1,\n            BashSharePackage()\n        )`
+        );
+
+        // Fallback: return listOf style
+        src = src.replace(
+          /(return\s+listOf\([^\)]*)\)/,
+          `$1,\n            BashSharePackage()\n        )`
+        );
+      }
+
+      fs.writeFileSync(appPath, src);
+      console.log("✅ Registered BashSharePackage in MainApplication.kt");
+      return cfg;
+    },
+  ]);
 }
 
 
@@ -561,6 +733,8 @@ module.exports = function withShareMenuLibrary(config) {
   config = withShareMenuActivityJava(config);
   config = withNormalizeAppIcon(config);
   config = withScrubMissingRoundIcon(config);
+  config = withBashShareNativeModule(config);
+  config = withRegisterBashSharePackage(config);
 
   return config;
 };

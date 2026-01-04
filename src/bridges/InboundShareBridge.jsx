@@ -4,53 +4,105 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { NativeEventEmitter, NativeModules, DeviceEventEmitter } from "react-native";
+import { AppState, DeviceEventEmitter, NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {  
   const addMessage = useGlobal((s) => s.addMessage);
+  const BashShareModule = NativeModules.BashShareModule;  // ✅ correct reference
 
   useEffect(() => {
     console.log("[Inbound Share] JS listener mounted");
 
+    let lastKey = null;
+
     const consume = async (raw) => {
-      // Defensive: log everything that arrives
       console.log("[Inbound Share] Event received:", raw, typeof raw);
 
-      // Strings → { text }
+      // De-duplication key
+      const key =
+        typeof raw === "string"
+          ? raw
+          : Array.isArray(raw)
+          ? raw[0]
+          : raw?.uri || String(raw);
+      if (key && key === lastKey) {
+        console.log("[Inbound Share] Duplicate event ignored");
+        return;
+      }
+      lastKey = key;
+
+      // Plain string → { text }
       if (typeof raw === "string") {
         const payload = { text: raw.trim() };
-        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        onShare ? onShare(payload) : addMessage(payload);
         console.log("[Inbound Share] Payload:", payload);
         return;
       }
 
-      // Guard: some RN bridges wrap values as { nativeEvent: ... }
+      // Array (SEND_MULTIPLE) → normalize first, or map if needed
+      if (Array.isArray(raw)) {
+        const first = raw[0];
+        try {
+          const payload = await toBashChatPayload(first);
+          onShare ? onShare(payload) : addMessage(payload);
+          console.log("[Inbound Share] Payload(array-first):", payload);
+        } catch (e) {
+          console.log("[Inbound Share] Error building payload from array:", e);
+        }
+        return;
+      }
+
+      // Wrapped nativeEvent
       if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
         const payload = { text: raw.nativeEvent.trim() };
-        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        onShare ? onShare(payload) : addMessage(payload);
         console.log("[Inbound Share] Payload(nativeEvent):", payload);
         return;
       }
 
-      // Fallback to full normalization
       if (!raw) return;
-      console.log("[Inbound Share] Raw data:", raw);
       try {
         const payload = await toBashChatPayload(raw);
-        if (onShare) { onShare(payload); } else { addMessage(payload); }
+        onShare ? onShare(payload) : addMessage(payload);
         console.log("[Inbound Share] Payload:", payload);
       } catch (e) {
         console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
       }
     };
 
-    // Canonical binding: listen only via NativeEventEmitter(DeviceEventManagerModule)
-    const nativeEmitter = new NativeEventEmitter(NativeModules.DeviceEventManagerModule);
-    const subNative = nativeEmitter.addListener("onShareReceived", consume);
+    const subDevice = DeviceEventEmitter.addListener("onShareReceived", consume);
+
+    // One-shot pulls of any queued share from native
+    const pullOnce = async () => {
+      try {
+        const pending = await BashShareModule?.consumePendingShare?.();
+        if (pending) {
+          console.log("[Inbound Share] Pulled pending:", pending);
+          await consume(pending);
+        }
+      } catch (e) {
+        console.log("[Inbound Share] Error pulling pending:", e);
+      }
+    };
+
+    // Immediate and timed retries to align with native 2-stage flushes
+    pullOnce();                       // immediate
+    const t1 = setTimeout(pullOnce, 2000); // aligns with 2.5s native flush
+    const t2 = setTimeout(pullOnce, 5000); // aligns with 5s secondary flush
+
+    // Foreground catch: if app becomes active after share, pull again
+    const onAppState = (state) => {
+      if (state === "active") pullOnce();
+    };
+    const appStateSub = AppState.addEventListener("change", onAppState);
 
     return () => {
-      try { subNative.remove(); } catch {}
+      try { subDevice.remove(); } catch {}
+      clearTimeout(t1);
+      clearTimeout(t2);
+      appStateSub?.remove?.();
     };
+
 
   }, [addMessage, onShare]);
 
