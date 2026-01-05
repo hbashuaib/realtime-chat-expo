@@ -31,6 +31,7 @@ ALLOWED_HOSTS = [
     '10.0.2.2', 
     '127.0.0.1',
     '192.168.8.206',
+    'bashchat.local',
 ]
 
 
@@ -42,7 +43,8 @@ REST_FRAMEWORK = {
     )
 }
 
-SITE_URL = "http://192.168.8.206:8000"
+SITE_URL = "https://bashchat.local"
+
 
 # Thumbnail Uploads
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -68,7 +70,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",           # Expo dev server - Web preview
     "http://192.168.8.206:19000",       # Expo Go on physical device
     "http://192.168.8.206:8081",        # Metro bundler
-    "http://10.0.2.2:19006",
+    "https://10.0.2.2",
+    "https://bashchat.local",
+    # "http://10.0.2.2:19006",
+    # "https://10.0.2.2",                 # allow HTTPS calls from emulator
     # r"^http://192\.168\.8\.\d{1,3}(:\d+)?$", # Android emulator
 ]
 

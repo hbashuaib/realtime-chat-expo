@@ -20,9 +20,11 @@ function thumbnail(url) {
     if (!url) {
         return ProfileImage
     }
-    return {        
-        uri: 'http://' + ADDRESS + url              
+    // Ensure absolute HTTPS URL
+    if (url.startsWith("http")) {
+        return { uri: url };
     }
+    return { uri: `https://${ADDRESS}${url}` };
     
 }
 

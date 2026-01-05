@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <!-- Allow cleartext only for Metro dev server -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">192.168.8.206</domain>
+  </domain-config>
+
+  <!-- Enforce HTTPS trust for your API endpoints -->
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="true">bashchat.local</domain>
+    <domain includeSubdomains="true">10.0.2.2</domain>
+    <trust-anchors>
+      <certificates src="system"/>
+      <certificates src="user"/>
+    </trust-anchors>
+  </domain-config>
+</network-security-config>

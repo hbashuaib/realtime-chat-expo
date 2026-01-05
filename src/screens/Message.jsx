@@ -647,9 +647,18 @@ function groupMessagesByDay(messages) {
 // --------------------------------------- SCREEN --------------------------------------
 export default function MessageScreen() {
   // const navigation = useNavigation();  
-  const { id: connectionIdRaw, friend: friendParam } = useLocalSearchParams();
-  const connectionId = Number(connectionIdRaw); // ✅ force integer
+  // const { id: connectionIdRaw, friend: friendParam } = useLocalSearchParams();
+  // const connectionId = Number(connectionIdRaw); // ✅ force integer
 
+  // const inboundShare = useGlobal((s) => s.inboundShare);
+  // const clearInboundShare = useGlobal((s) => s.clearInboundShare);
+  
+  const { id: connectionIdRaw, friend: friendParam, fromShare } = useLocalSearchParams();
+  const connectionId = Number(connectionIdRaw); // ✅ force integer
+  
+  const inboundShare = useGlobal((s) => s.inboundShare);
+  const clearInboundShare = useGlobal((s) => s.clearInboundShare);
+  
   // If friend is passed as JSON string, parse; else assume object
   const friend = (() => {
     if (typeof friendParam === "string") {
@@ -660,12 +669,33 @@ export default function MessageScreen() {
       }
     }
     return friendParam;
-  })();
+  })();  
 
   const screenHeight = Dimensions.get("window").height;
   const statusBarHeight = StatusBar.currentHeight || 0;
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  useEffect(() => {
+    if (fromShare !== "1") return;
+    if (!connectionId) return;
+    if (!inboundShare) return;
+
+    if (!socketReady) {
+      console.log("[Message] Socket not ready, will retry when it opens");
+      return; // skip for now, effect will re-run when socketReady changes
+    }
+
+    console.log("[Message] Consuming inbound share:", inboundShare);
+    if (inboundShare.kind === "text") {
+      const text = (inboundShare.text || "").trim();
+      if (text.length > 0) messageSend(connectionId, text);
+    } else {
+      messageSend(connectionId, "", inboundShare.payload);
+    }
+    clearInboundShare();
+  }, [fromShare, connectionId, inboundShare, socketReady, messageSend, clearInboundShare]);
+
 
   const keyboardOffset = Platform.OS === "ios" ? 60 : statusBarHeight + 30;
   const emojiPickerHeight = 300;
@@ -779,159 +809,6 @@ export default function MessageScreen() {
     const type = expectedMime || inferMimeFromUri(remoteUri);
     return { url: fileUri, type };
   }
-
-
-  // async function downloadToCache(remoteUri, fallbackName, expectedMime) {
-  //   const filename = getFilenameFromUri(remoteUri, fallbackName);
-  //   const localPath = FileSystem.cacheDirectory + filename;
-
-  //   // Create a File handle for the remote URL
-  //   const remoteFile = new File(remoteUri);
-  //   const destFile = new File(localPath);
-
-  //   // Download/copy into cache
-  //   await remoteFile.download(destFile);
-
-  //   // Build return object
-  //   const fileUri = localPath.startsWith("file://") ? localPath : "file://" + localPath;
-  //   const type = expectedMime || inferMimeFromUri(remoteUri);
-  //   return { url: fileUri, type };
-  // }
-
-  // // Helper: normalize shared item into your messageSend payload
-  // // ✅ Normalize shared item into BashChat payload
-  // async function toBashChatPayload(item) {
-  //   const mime = (item?.mimeType || "").toLowerCase();
-
-  //   // Text or plain strings
-  //   if (mime === "text/plain" ||
-  //       (typeof item?.data === "string" &&
-  //       !mime.startsWith("image/") &&
-  //       !mime.startsWith("video/") &&
-  //       !mime.startsWith("audio/"))) {
-  //     return { kind: "text", text: String(item.data || "") };
-  //   }
-
-  //   const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
-  //   if (typeof uri !== "string" || uri.length === 0) {
-  //     return { kind: "text", text: "[Unsupported share payload]" };
-  //   }
-
-  //   const filename = getFilenameFromUri(uri, "shared");
-  //   const cachePath = FileSystem.cacheDirectory + filename;
-
-  //   try {
-  //     // Normalize source into cache
-  //     await FileSystem.copyAsync({ from: uri, to: cachePath });
-
-  //     const base64 = await FileSystem.readAsStringAsync(cachePath, {
-  //       encoding: FileSystem.EncodingType.Base64,
-  //     });
-
-  //     if (!base64) return { kind: "text", text: "[Failed to load media]" };
-
-  //     if (mime.startsWith("image/")) {
-  //       return { kind: "image", payload: { base64, filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg` } };
-  //     }
-  //     if (mime.startsWith("video/")) {
-  //       return { kind: "video", payload: { video: base64, video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`, video_url: uri } };
-  //     }
-  //     if (mime.startsWith("audio/")) {
-  //       const ext = filename.split(".").pop()?.toLowerCase();
-  //       const safeName = ["m4a", "aac", "mp3", "wav"].includes(ext) ? filename : `${filename}.m4a`;
-  //       return { kind: "voice", payload: { base64, filename: safeName, voice: uri } };
-  //     }
-
-  //     return { kind: "text", text: uri };
-  //   } catch (e) {
-  //     console.log("[Share] Failed to load shared URI:", e);
-  //     return { kind: "text", text: "[Failed to load media]" };
-  //   }
-  // }
-
-
-  // async function toBashChatPayload(item) {
-  //   const mime = (item?.mimeType || "").toLowerCase();
-
-  //   // Text/emoji
-  //   if (
-  //     mime === "text/plain" ||
-  //     (typeof item?.data === "string" &&
-  //       !mime.startsWith("image/") &&
-  //       !mime.startsWith("video/") &&
-  //       !mime.startsWith("audio/"))
-  //   ) {
-  //     return { kind: "text", text: String(item.data || "") };
-  //   }
-
-  //   const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
-  //   if (typeof uri !== "string" || uri.length === 0) {
-  //     return { kind: "text", text: "[Unsupported share payload]" };
-  //   }
-
-  //   const filename = getFilenameFromUri(uri, "shared");
-
-  //   let base64 = null;
-  //   try {
-  //     // Always copy to cache to normalize content:// into file://
-  //     const cachePath = FileSystem.cacheDirectory + filename;
-
-  //     // Create File objects
-  //     const sourceFile = new File(uri);
-  //     const destFile = new File(cachePath);
-
-  //     // Copy into cache
-  //     await sourceFile.copy(destFile);
-
-  //     // Read as text/base64
-  //     base64 = await destFile.read({ encoding: "base64" });
-  //   } catch (e) {
-  //     console.log("[Share] Failed to load shared URI:", e);
-  //   }
-
-
-  //   // ✅ Error handling: fallback if base64 is null
-  //   if (!base64) {
-  //     return { kind: "text", text: "[Failed to load media]" };
-  //   }
-
-  //   // ✅ Map by mime type
-  //   if (mime.startsWith("image/")) {
-  //     return {
-  //       kind: "image",
-  //       payload: {
-  //         base64,
-  //         filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg`,
-  //       },
-  //     };
-  //   }
-  //   if (mime.startsWith("video/")) {
-  //     return {
-  //       kind: "video",
-  //       payload: {
-  //         video: base64,
-  //         video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`,
-  //         video_url: uri,
-  //       },
-  //     };
-  //   }
-  //   if (mime.startsWith("audio/")) {
-  //     const audioExt = filename.split(".").pop().toLowerCase();
-  //     const safeName = ["m4a", "aac", "mp3", "wav"].includes(audioExt)
-  //       ? filename
-  //       : `${filename}.m4a`;
-  //     return {
-  //       kind: "voice",
-  //       payload: {
-  //         base64,
-  //         filename: safeName,
-  //         voice: uri,
-  //       },
-  //     };
-  //   }
-
-  //   return { kind: "text", text: uri };
-  // }
 
 
   // **Helper:** build payload for a single message (async because of downloads)
@@ -1113,14 +990,6 @@ export default function MessageScreen() {
   }, []);
 
 
-  // Debug nav state (optional)
-  // useEffect(() => {
-  //   try {
-  //     console.log("navigation state:", navigation?.getState?.());
-  //   } catch {}
-  // }, []);
- 
-
   // Request messages when connectionId changes and socket ready
   useEffect(() => {
     if (!socketReady) { // (!connection || connection.readyState !== 1)
@@ -1240,45 +1109,6 @@ export default function MessageScreen() {
     }
   }
 
-
-
-  // async function stopRecording() {
-  //   try {
-  //     if (!recording) {
-  //       console.warn("[stopRecording] No active recording");
-  //       return;
-  //     }
-
-  //     await recording.stopAndUnloadAsync();
-  //     const uri = recording.getURI();
-  //     setRecording(null);
-  //     setRecordingUri(uri);
-      
-  //     console.log("Recorded URI:", uri);
-
-  //     const response = await fetch(uri);
-  //     const blob = await response.blob();
-  //     const reader = new FileReader();
-
-  //     reader.onloadend = () => {
-  //       const base64 = reader.result.split(",")[1];
-  //       const filename = `voice_${Date.now()}.m4a`;        
-
-  //       messageSend(connectionId, "", {
-  //         base64,
-  //         filename,
-  //         voice: uri,
-  //         //newMessage
-  //       });
-  //       // ✅ also attach voice for immediate playback
-  //       //newMessage.voice = newMessage.localUri;
-  //     };
-
-  //     reader.readAsDataURL(blob);
-  //   } catch (err) {
-  //     console.error("Failed to stop recording", err);
-  //   }
-  // }
 
   // Typing indicator
   function onType(value) {
@@ -1561,6 +1391,213 @@ export default function MessageScreen() {
     </View>
   );
 }
+
+
+
+
+  // Debug nav state (optional)
+  // useEffect(() => {
+  //   try {
+  //     console.log("navigation state:", navigation?.getState?.());
+  //   } catch {}
+  // }, []);
+ 
+
+
+
+  // async function stopRecording() {
+  //   try {
+  //     if (!recording) {
+  //       console.warn("[stopRecording] No active recording");
+  //       return;
+  //     }
+
+  //     await recording.stopAndUnloadAsync();
+  //     const uri = recording.getURI();
+  //     setRecording(null);
+  //     setRecordingUri(uri);
+      
+  //     console.log("Recorded URI:", uri);
+
+  //     const response = await fetch(uri);
+  //     const blob = await response.blob();
+  //     const reader = new FileReader();
+
+  //     reader.onloadend = () => {
+  //       const base64 = reader.result.split(",")[1];
+  //       const filename = `voice_${Date.now()}.m4a`;        
+
+  //       messageSend(connectionId, "", {
+  //         base64,
+  //         filename,
+  //         voice: uri,
+  //         //newMessage
+  //       });
+  //       // ✅ also attach voice for immediate playback
+  //       //newMessage.voice = newMessage.localUri;
+  //     };
+
+  //     reader.readAsDataURL(blob);
+  //   } catch (err) {
+  //     console.error("Failed to stop recording", err);
+  //   }
+  // }
+
+
+
+  // async function downloadToCache(remoteUri, fallbackName, expectedMime) {
+  //   const filename = getFilenameFromUri(remoteUri, fallbackName);
+  //   const localPath = FileSystem.cacheDirectory + filename;
+
+  //   // Create a File handle for the remote URL
+  //   const remoteFile = new File(remoteUri);
+  //   const destFile = new File(localPath);
+
+  //   // Download/copy into cache
+  //   await remoteFile.download(destFile);
+
+  //   // Build return object
+  //   const fileUri = localPath.startsWith("file://") ? localPath : "file://" + localPath;
+  //   const type = expectedMime || inferMimeFromUri(remoteUri);
+  //   return { url: fileUri, type };
+  // }
+
+  // // Helper: normalize shared item into your messageSend payload
+  // // ✅ Normalize shared item into BashChat payload
+  // async function toBashChatPayload(item) {
+  //   const mime = (item?.mimeType || "").toLowerCase();
+
+  //   // Text or plain strings
+  //   if (mime === "text/plain" ||
+  //       (typeof item?.data === "string" &&
+  //       !mime.startsWith("image/") &&
+  //       !mime.startsWith("video/") &&
+  //       !mime.startsWith("audio/"))) {
+  //     return { kind: "text", text: String(item.data || "") };
+  //   }
+
+  //   const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
+  //   if (typeof uri !== "string" || uri.length === 0) {
+  //     return { kind: "text", text: "[Unsupported share payload]" };
+  //   }
+
+  //   const filename = getFilenameFromUri(uri, "shared");
+  //   const cachePath = FileSystem.cacheDirectory + filename;
+
+  //   try {
+  //     // Normalize source into cache
+  //     await FileSystem.copyAsync({ from: uri, to: cachePath });
+
+  //     const base64 = await FileSystem.readAsStringAsync(cachePath, {
+  //       encoding: FileSystem.EncodingType.Base64,
+  //     });
+
+  //     if (!base64) return { kind: "text", text: "[Failed to load media]" };
+
+  //     if (mime.startsWith("image/")) {
+  //       return { kind: "image", payload: { base64, filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg` } };
+  //     }
+  //     if (mime.startsWith("video/")) {
+  //       return { kind: "video", payload: { video: base64, video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`, video_url: uri } };
+  //     }
+  //     if (mime.startsWith("audio/")) {
+  //       const ext = filename.split(".").pop()?.toLowerCase();
+  //       const safeName = ["m4a", "aac", "mp3", "wav"].includes(ext) ? filename : `${filename}.m4a`;
+  //       return { kind: "voice", payload: { base64, filename: safeName, voice: uri } };
+  //     }
+
+  //     return { kind: "text", text: uri };
+  //   } catch (e) {
+  //     console.log("[Share] Failed to load shared URI:", e);
+  //     return { kind: "text", text: "[Failed to load media]" };
+  //   }
+  // }
+
+
+  // async function toBashChatPayload(item) {
+  //   const mime = (item?.mimeType || "").toLowerCase();
+
+  //   // Text/emoji
+  //   if (
+  //     mime === "text/plain" ||
+  //     (typeof item?.data === "string" &&
+  //       !mime.startsWith("image/") &&
+  //       !mime.startsWith("video/") &&
+  //       !mime.startsWith("audio/"))
+  //   ) {
+  //     return { kind: "text", text: String(item.data || "") };
+  //   }
+
+  //   const uri = Array.isArray(item?.data) ? item.data[0] : item?.data;
+  //   if (typeof uri !== "string" || uri.length === 0) {
+  //     return { kind: "text", text: "[Unsupported share payload]" };
+  //   }
+
+  //   const filename = getFilenameFromUri(uri, "shared");
+
+  //   let base64 = null;
+  //   try {
+  //     // Always copy to cache to normalize content:// into file://
+  //     const cachePath = FileSystem.cacheDirectory + filename;
+
+  //     // Create File objects
+  //     const sourceFile = new File(uri);
+  //     const destFile = new File(cachePath);
+
+  //     // Copy into cache
+  //     await sourceFile.copy(destFile);
+
+  //     // Read as text/base64
+  //     base64 = await destFile.read({ encoding: "base64" });
+  //   } catch (e) {
+  //     console.log("[Share] Failed to load shared URI:", e);
+  //   }
+
+
+  //   // ✅ Error handling: fallback if base64 is null
+  //   if (!base64) {
+  //     return { kind: "text", text: "[Failed to load media]" };
+  //   }
+
+  //   // ✅ Map by mime type
+  //   if (mime.startsWith("image/")) {
+  //     return {
+  //       kind: "image",
+  //       payload: {
+  //         base64,
+  //         filename: filename.endsWith(".jpg") ? filename : `${filename}.jpg`,
+  //       },
+  //     };
+  //   }
+  //   if (mime.startsWith("video/")) {
+  //     return {
+  //       kind: "video",
+  //       payload: {
+  //         video: base64,
+  //         video_filename: filename.endsWith(".mp4") ? filename : `${filename}.mp4`,
+  //         video_url: uri,
+  //       },
+  //     };
+  //   }
+  //   if (mime.startsWith("audio/")) {
+  //     const audioExt = filename.split(".").pop().toLowerCase();
+  //     const safeName = ["m4a", "aac", "mp3", "wav"].includes(audioExt)
+  //       ? filename
+  //       : `${filename}.m4a`;
+  //     return {
+  //       kind: "voice",
+  //       payload: {
+  //         base64,
+  //         filename: safeName,
+  //         voice: uri,
+  //       },
+  //     };
+  //   }
+
+  //   return { kind: "text", text: uri };
+  // }
+
+
 
 
 // Map a single message to a Share.open payload

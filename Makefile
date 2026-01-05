@@ -369,5 +369,9 @@ kill-metro:
 
 # Nginx Server:
 # PS C:\tools\nginx-1.29.4> .\nginx.exe
+# .\nginx.exe -s reload
+# .\nginx.exe -s stop   # immediate termination
+# .\nginx.exe -s quit   # graceful shutdown
+
 
 

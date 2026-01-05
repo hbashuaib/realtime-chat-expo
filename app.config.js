@@ -75,6 +75,7 @@ export default {
 
       // ✅ Keep only one share‑menu plugin to avoid conflicts
       //"./plugins/withShareMenuFix.custom.js",
+      "./plugins/withNetworkSecurityConfig.js",
       "./plugins/withShareMenuLibrary.js",
       "./plugins/withIconBackground.js",
     ],

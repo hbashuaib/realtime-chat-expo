@@ -1,6 +1,6 @@
 // src/screens/Friends.jsx
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,16 +8,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import Cell from "../common/Cell";
 import Empty from "../common/Empty";
-import useGlobal from "../core/global";
 import Thumbnail from "../common/Thumbnail";
+import useGlobal from "../core/global";
 import utils from "../core/utils";
 
-import { theme } from "@/src/core/theme";         
-import { useColorScheme } from "@/hooks/use-color-scheme"; 
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { theme } from "@/src/core/theme";
 
 function FriendRow({ item, currentTheme, onSelectFriend }) {
   return (
@@ -61,6 +61,9 @@ function FriendsScreen() {
   const friendList = useGlobal((state) => state.friendList);
   const { messageForward } = useGlobal.getState(); // ✅ access global action
 
+  const inboundShare = useGlobal((s) => s.inboundShare);
+  const clearInboundShare = useGlobal((s) => s.clearInboundShare);
+
   // Read forwarding params (if present)
   const { forwardFromConnectionId, forwardMessageIds } = useLocalSearchParams(); // ✅
 
@@ -70,6 +73,20 @@ function FriendsScreen() {
   const currentTheme = theme[colorScheme];
 
   function onSelectFriend(item) {
+    // Inbound share handoff
+    if (inboundShare) {
+      router.push({
+        pathname: "/Message",
+        params: {
+          friend: JSON.stringify(item.friend),
+          id: item.id,
+          fromShare: "1",
+        },
+      });
+      clearInboundShare();
+      return;
+    }
+
     // If we arrived here with forwarding payload, forward then navigate
     if (forwardFromConnectionId && forwardMessageIds && !forwardingUsed.current) {
       forwardingUsed.current = true;   // ✅ mark as consumed
@@ -122,6 +139,23 @@ function FriendsScreen() {
         backgroundColor: currentTheme.colors.background,
       }}
     >
+      {inboundShare && (
+        <View style={{
+          padding: currentTheme.spacing.md,
+          backgroundColor: currentTheme.colors.bannerBackground,
+          borderBottomWidth: 1,
+          borderBottomColor: currentTheme.colors.border,
+        }}>
+          <Text style={{
+            color: currentTheme.colors.onPrimary,
+            fontWeight: "bold",
+            textAlign: "center",
+          }}>
+            Shared content ready — select a friend to send
+          </Text>
+        </View>
+      )}
+
       {/* ✅ Forwarding banner */}
       {forwardFromConnectionId && forwardMessageIds && !forwardingUsed.current && (
         <View

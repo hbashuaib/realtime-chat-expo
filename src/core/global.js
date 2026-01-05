@@ -217,6 +217,13 @@ function responseMessageDeleted(set, get, data) {
 
 const useGlobal = create((set, get) => ({
     //--------------------------
+    //      Inbound Share Queue
+    //--------------------------
+    inboundShare: null,
+    setInboundShare: (payload) => set(() => ({ inboundShare: payload })),
+    clearInboundShare: () => set(() => ({ inboundShare: null })),
+
+    //--------------------------
     //      Initialization
     //--------------------------
     initialized: false,
@@ -346,7 +353,7 @@ const useGlobal = create((set, get) => ({
         }
 
         // If we reach here, tokens are valid
-        const url = `ws://${ADDRESS}/chat/?token=${tokens.access}`
+        const url = `wss://${ADDRESS}/chat/?token=${tokens.access}`
         utils.log("[Socket] Connecting to:", url);
 
         const socket = new WebSocket(url) 

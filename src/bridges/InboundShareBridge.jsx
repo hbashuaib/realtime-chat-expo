@@ -7,7 +7,9 @@ import { useEffect } from "react";
 import { AppState, DeviceEventEmitter, NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {  
-  const addMessage = useGlobal((s) => s.addMessage);
+  // const addMessage = useGlobal((s) => s.addMessage);
+  const setInboundShare = useGlobal((s) => s.setInboundShare);
+  
   const BashShareModule = NativeModules.BashShareModule;  // ✅ correct reference
 
   useEffect(() => {
@@ -32,9 +34,16 @@ export default function InboundShareBridge({ onShare }) {
       lastKey = key;
 
       // Plain string → { text }
+      // if (typeof raw === "string") {
+      //   const payload = { text: raw.trim() };
+      //   onShare ? onShare(payload) : addMessage(payload);
+      //   console.log("[Inbound Share] Payload:", payload);
+      //   return;
+      // }
+
       if (typeof raw === "string") {
-        const payload = { text: raw.trim() };
-        onShare ? onShare(payload) : addMessage(payload);
+        const payload = { kind: "text", text: raw.trim() };
+        setInboundShare(payload);
         console.log("[Inbound Share] Payload:", payload);
         return;
       }
@@ -43,9 +52,11 @@ export default function InboundShareBridge({ onShare }) {
       if (Array.isArray(raw)) {
         const first = raw[0];
         try {
-          const payload = await toBashChatPayload(first);
-          onShare ? onShare(payload) : addMessage(payload);
-          console.log("[Inbound Share] Payload(array-first):", payload);
+          // const payload = await toBashChatPayload(first);
+          // onShare ? onShare(payload) : addMessage(payload);
+          const normalized = await toBashChatPayload(first);
+          setInboundShare({ kind: "media", payload: normalized });
+          console.log("[Inbound Share] Payload(array-first):", normalized);
         } catch (e) {
           console.log("[Inbound Share] Error building payload from array:", e);
         }
@@ -54,17 +65,21 @@ export default function InboundShareBridge({ onShare }) {
 
       // Wrapped nativeEvent
       if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
-        const payload = { text: raw.nativeEvent.trim() };
-        onShare ? onShare(payload) : addMessage(payload);
+        // const payload = { text: raw.nativeEvent.trim() };
+        // onShare ? onShare(payload) : addMessage(payload);
+        const payload = { kind: "text", text: raw.nativeEvent.trim() };
+        setInboundShare(payload);
         console.log("[Inbound Share] Payload(nativeEvent):", payload);
         return;
       }
 
       if (!raw) return;
       try {
-        const payload = await toBashChatPayload(raw);
-        onShare ? onShare(payload) : addMessage(payload);
-        console.log("[Inbound Share] Payload:", payload);
+        // const payload = await toBashChatPayload(raw);
+        // onShare ? onShare(payload) : addMessage(payload);
+        const normalized = await toBashChatPayload(raw);
+        setInboundShare({ kind: "media", payload: normalized });
+        console.log("[Inbound Share] Payload:", normalized);
       } catch (e) {
         console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
       }
@@ -89,6 +104,7 @@ export default function InboundShareBridge({ onShare }) {
     pullOnce();                       // immediate
     const t1 = setTimeout(pullOnce, 2000); // aligns with 2.5s native flush
     const t2 = setTimeout(pullOnce, 5000); // aligns with 5s secondary flush
+    const t3 = setTimeout(pullOnce, 8000);
 
     // Foreground catch: if app becomes active after share, pull again
     const onAppState = (state) => {
@@ -100,11 +116,11 @@ export default function InboundShareBridge({ onShare }) {
       try { subDevice.remove(); } catch {}
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
       appStateSub?.remove?.();
     };
 
-
-  }, [addMessage, onShare]);
+  }, [setInboundShare, onShare]);
 
   return null;
 }
