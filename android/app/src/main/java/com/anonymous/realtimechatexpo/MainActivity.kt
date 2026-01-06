@@ -100,6 +100,7 @@ class MainActivity : ReactActivity() {
     }, 500)
   }
 
+
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
@@ -181,83 +182,131 @@ class MainActivity : ReactActivity() {
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
     val action = intent.action
     val type = intent.type ?: ""
-
     if (Intent.ACTION_SEND != action) {
       android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
       return
     }
+    fun emitJson(json: String) {
+      com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+      context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onShareReceived", json)
+    }
 
-    when {
-      type.startsWith("text/") -> {
-        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-        if (!sharedText.isNullOrEmpty()) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
-          // TEXT via EXTRA_TEXT
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(sharedText)
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", sharedText)
-          return
-        }
-        val clip = intent.clipData
-        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-        if (!clipText.isNullOrEmpty()) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
-          // TEXT via ClipData
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(clipText.toString())
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", clipText.toString())
-          return
-        }
-        android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
+    // TEXT: strip URLs
+    if (type.startsWith("text/")) {
+      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+      if (!sharedText.isNullOrEmpty()) {
+        val cleaned = stripUrls(sharedText)
+        val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+        emitJson(json)
+        return
+      }
+      val clip = intent.clipData
+      val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+      if (!clipText.isNullOrEmpty()) {
+        val cleaned = stripUrls(clipText.toString())
+        val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+        emitJson(json)
+        return
+      }
+      return
+    }
+
+    // STREAMS: image/audio/video/pdf
+    val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+      ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
+
+    if (streamUri != null) {
+      val resolver = applicationContext.contentResolver
+      val mime = resolver.getType(streamUri) ?: type
+      val base64 = readUriToBase64(resolver, streamUri)
+      val filename = guessFilename(resolver, streamUri)
+
+      val json = when {
+        mime.startsWith("image/") ->
+          """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+        mime.startsWith("video/") ->
+          """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
+        mime.startsWith("audio/") ->
+          """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+        mime == "application/pdf" ->
+          """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+        else ->
+          """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
       }
 
-      type.startsWith("image/") -> {
-        val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-        if (imageUri != null) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
-          // IMAGE via EXTRA_STREAM
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(imageUri.toString())
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", imageUri.toString())
-          return
-        }
-        val clip = intent.clipData
-        val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
-        if (uriFromClip != null) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
-          // IMAGE via ClipData
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(uriFromClip.toString())
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", uriFromClip.toString())
-          return
-        }
-        android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
-      }
+      emitJson(json)
+      return
+    }
 
-      else -> {
-        val clip = intent.clipData
-        val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
-        val anyText = item?.text
-        val anyUri = item?.uri
-        if (!anyText.isNullOrEmpty()) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
-          // FALLBACK TEXT
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyText.toString())
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", anyText.toString())
-          return
-        }
-        if (anyUri != null) {
-          android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
-          // FALLBACK URI
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyUri.toString())
-          context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onShareReceived", anyUri.toString())
-          return
-        }
-        android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
-      }
+    // Fallbacks
+    val clip = intent.clipData
+    val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+    val anyText = item?.text
+    val anyUri = item?.uri
+    if (!anyText.isNullOrEmpty()) {
+      val cleaned = stripUrls(anyText.toString())
+      val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+      emitJson(json)
+      return
+    }
+    if (anyUri != null) {
+      val mime = applicationContext.contentResolver.getType(anyUri) ?: type
+      val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
+      emitJson(json)
+      return
     }
   }
 
+  private fun escapeJson(raw: String): String {
+    val s = raw.replace("\\", "\\\\")
+               .replace("\"", "\\\"")
+               .replace("\n", "\\n")
+               .replace("\r", "\\r")
+    return "\"$s\""
+  }
+
+  private fun readUriToBase64(resolver: android.content.ContentResolver, uri: android.net.Uri): String? {
+    return try {
+      resolver.openInputStream(uri)?.use { input ->
+        val bytes = input.readBytes()
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("BashChatTest", "readUriToBase64 failed: ${e.message}", e)
+      null
+    }
+  }
+
+  private fun guessFilename(resolver: android.content.ContentResolver, uri: android.net.Uri): String {
+    try {
+      resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+        if (c.moveToFirst()) {
+          val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+          if (idx >= 0) {
+            val name = c.getString(idx)
+            if (!name.isNullOrBlank()) return name
+          }
+        }
+      }
+    } catch (_: Exception) {}
+    val last = uri.lastPathSegment ?: ""
+    if (last.isNotBlank()) return last
+    val mime = resolver.getType(uri) ?: ""
+    return when {
+      mime.startsWith("image/") -> "share_${System.currentTimeMillis()}.jpg"
+      mime.startsWith("video/") -> "share_${System.currentTimeMillis()}.mp4"
+      mime.startsWith("audio/") -> "share_${System.currentTimeMillis()}.m4a"
+      mime == "application/pdf" -> "share_${System.currentTimeMillis()}.pdf"
+      else -> "share_${System.currentTimeMillis()}.bin"
+    }
+  }
+
+  private fun stripUrls(text: String): String {
+    val urlRegex = Regex("\\bhttps?://\\S+", RegexOption.IGNORE_CASE)
+    return text.replace(urlRegex, "")
+               .replace("\n", " ")
+               .replace(Regex("\\s{2,}"), " ")
+               .trim()
+  }
 }

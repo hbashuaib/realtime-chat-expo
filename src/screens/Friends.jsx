@@ -82,8 +82,7 @@ function FriendsScreen() {
           id: item.id,
           fromShare: "1",
         },
-      });
-      clearInboundShare();
+      });      
       return;
     }
 

@@ -282,7 +282,16 @@ const useGlobal = create((set, get) => ({
                     authenticated: true,
                     user: user
                 }))
+
+                // Kick off socket connection immediately after successful login restoration
+                try {
+                get().socketConnect();
+                } catch (err) {
+                utils.log("[Init] socketConnect failed:", err);
+                }
+
                 return
+
             } catch (error) {
                 console.log('useGlobal.init: ', error)
             }            
@@ -332,25 +341,34 @@ const useGlobal = create((set, get) => ({
 
         const tokens = await secure.get('tokens')
         
-        // Improved logging: show exactly what was returned
-        if (!tokens) {
-            utils.log("[Auth] secure.get('tokens') returned null/undefined");
-            } else {
-            utils.log("[Auth] Tokens object:", tokens);
-        }
+        // // Improved logging: show exactly what was returned
+        // if (!tokens) {
+        //     utils.log("[Auth] secure.get('tokens') returned null/undefined");
+        //     } else {
+        //     utils.log("[Auth] Tokens object:", tokens);
+        // }
 
-        // Guard against missing or malformed tokens
-        if (!tokens || !tokens.access) {
-            utils.log("[Socket] No valid access token found, skipping socket connection");
+        // // Guard against missing or malformed tokens
+        // if (!tokens || !tokens.access) {
+        //     utils.log("[Socket] No valid access token found, skipping socket connection");
             
-            // Reset connection flags so the app doesn't get stuck
-            set((state) => ({ socketConnecting: false, socketReady: false }));
+        //     // Reset connection flags so the app doesn't get stuck
+        //     set((state) => ({ socketConnecting: false, socketReady: false }));
             
-            // Optionally, navigate back to SignIn or show a message
-            // navigation.navigate("SignIn"); // if you have navigation available
+        //     // Optionally, navigate back to SignIn or show a message
+        //     // navigation.navigate("SignIn"); // if you have navigation available
             
+        //     return;
+        // }
+
+        if (!tokens || typeof tokens !== 'object' || !tokens.access) {
+            utils.log("[Socket] No valid tokens on socketConnect; are we launching from Share before init?");
+            set(() => ({ socketConnecting: false, socketReady: false }));
             return;
         }
+
+        utils.log("[Auth] Tokens object:", tokens);
+
 
         // If we reach here, tokens are valid
         const url = `wss://${ADDRESS}/chat/?token=${tokens.access}`
@@ -411,10 +429,26 @@ const useGlobal = create((set, get) => ({
         socket.onerror = (e) => {
             utils.log('socket.onerror', e.message)
         }
+        // socket.onclose = (e) => {
+        //     utils.log('socket.onclose',e.code, e.reason)
+        //     set((state) => ({ socketReady: false, socketConnecting: false }));
+        // }
         socket.onclose = (e) => {
-            utils.log('socket.onclose',e.code, e.reason)
-            set((state) => ({ socketReady: false, socketConnecting: false }));
-        }
+            utils.log('socket.onclose', e.code, e.reason);
+            set(() => ({ socketReady: false, socketConnecting: false, socket: null }));
+
+            // Optional auto-reconnect with a small delay (guards inside socketConnect prevent duplicates)
+            const retryMs = 2000;
+            setTimeout(() => {
+                const { authenticated } = get();
+                if (authenticated) {
+                utils.log("[Socket] Attempting auto-reconnect…");
+                get().socketConnect();
+                } else {
+                utils.log("[Socket] Not authenticated; skipping auto-reconnect.");
+                }
+            }, retryMs);
+        };
         set((state) => ({
             socket: socket,            
         }))

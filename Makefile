@@ -374,4 +374,85 @@ kill-metro:
 # .\nginx.exe -s quit   # graceful shutdown
 
 
+# withShareMenuLibrary working codes:
+# private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+#     val action = intent.action
+#     val type = intent.type ?: ""
 
+#     if (Intent.ACTION_SEND != action) {
+#       android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+#       return
+#     }
+
+#     when {
+#       type.startsWith("text/") -> {
+#         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+#         if (!sharedText.isNullOrEmpty()) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT: $sharedText")
+#           // TEXT via EXTRA_TEXT
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(sharedText)
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", sharedText)
+#           return
+#         }
+#         val clip = intent.clipData
+#         val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+#         if (!clipText.isNullOrEmpty()) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived TEXT (ClipData): $clipText")
+#           // TEXT via ClipData
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(clipText.toString())
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", clipText.toString())
+#           return
+#         }
+#         android.util.Log.e("BashChatTest", ">>> No text found in EXTRA_TEXT or ClipData")
+#       }
+
+#       type.startsWith("image/") -> {
+#         val imageUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+#         if (imageUri != null) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE: $imageUri")
+#           // IMAGE via EXTRA_STREAM
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(imageUri.toString())
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", imageUri.toString())
+#           return
+#         }
+#         val clip = intent.clipData
+#         val uriFromClip = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+#         if (uriFromClip != null) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived IMAGE (ClipData): $uriFromClip")
+#           // IMAGE via ClipData
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(uriFromClip.toString())
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", uriFromClip.toString())
+#           return
+#         }
+#         android.util.Log.e("BashChatTest", ">>> No image URI in EXTRA_STREAM or ClipData")
+#       }
+
+#       else -> {
+#         val clip = intent.clipData
+#         val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+#         val anyText = item?.text
+#         val anyUri = item?.uri
+#         if (!anyText.isNullOrEmpty()) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK TEXT: $anyText")
+#           // FALLBACK TEXT
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyText.toString())
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", anyText.toString())
+#           return
+#         }
+#         if (anyUri != null) {
+#           android.util.Log.e("BashChatTest", ">>> onShareReceived FALLBACK URI: $anyUri")
+#           // FALLBACK URI
+#           com.anonymous.realtimechatexpo.BashShareQueue.setPending(anyUri.toString())
+#           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#             .emit("onShareReceived", anyUri.toString())
+#           return
+#         }
+#         android.util.Log.e("BashChatTest", ">>> Unhandled SEND type=$type")
+#       }
+#     }
+#   }

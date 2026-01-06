@@ -682,7 +682,7 @@ export default function MessageScreen() {
     if (!inboundShare) return;
 
     if (!socketReady) {
-      console.log("[Message] Socket not ready, will retry when it opens");
+      console.log("[Message] Socket not ready, waiting...");
       return; // skip for now, effect will re-run when socketReady changes
     }
 
@@ -694,7 +694,7 @@ export default function MessageScreen() {
       messageSend(connectionId, "", inboundShare.payload);
     }
     clearInboundShare();
-  }, [fromShare, connectionId, inboundShare, socketReady, messageSend, clearInboundShare]);
+  }, [fromShare, connectionId, inboundShare, socketReady ]); //messageSend, clearInboundShare
 
 
   const keyboardOffset = Platform.OS === "ios" ? 60 : statusBarHeight + 30;
@@ -872,6 +872,20 @@ export default function MessageScreen() {
   const messageType = useGlobal((state) => state.messageType); 
   const socket = useGlobal((state) => state.socket); // ✅ use socket instead of connection
   const socketReady = useGlobal((state) => state.socketReady);
+  const socketConnect = useGlobal((state) => state.socketConnect);
+
+  // Ensure we actively connect when arriving (e.g., via Share) and socket isn’t ready
+  useEffect(() => {
+    if (!socketReady) {
+      console.log("[Message] socketReady=false → invoking socketConnect()");
+      socketConnect(); // triggers auth check and websocket setup
+    }
+  }, [socketReady, socketConnect]);
+
+  // Optional: visibility into readiness changes
+  useEffect(() => {
+    console.log("[Message] socketReady changed:", socketReady);
+  }, [socketReady]);
 
 
   const inputRef = useRef(null);
@@ -1034,26 +1048,26 @@ export default function MessageScreen() {
     setMessage("");
   }
   
-  /* Example: consume via global queued payload */
-  const inbound = useGlobal((s) => s.inboundPayload);        // implement setter in bridge path if you prefer global
-  const clearInbound = useGlobal((s) => s.clearInboundPayload);
+  // /* Example: consume via global queued payload */
+  // const inbound = useGlobal((s) => s.inboundPayload);        // implement setter in bridge path if you prefer global
+  // const clearInbound = useGlobal((s) => s.clearInboundPayload);
 
-  useEffect(() => {
-    if (!inbound) return;
-    if (!connectionId) return;
+  // useEffect(() => {
+  //   if (!inbound) return;
+  //   if (!connectionId) return;
 
-    console.log("[Message] Consuming inbound payload:", inbound);
+  //   console.log("[Message] Consuming inbound payload:", inbound);
 
-    if (inbound.kind === "text") {
-      const text = (inbound.text || "").trim();
-      if (text.length > 0) messageSend(connectionId, text);
-    } else {
-      // normalized payload from bridge (image/video/audio)
-      messageSend(connectionId, "", inbound.payload || inbound);
-    }
+  //   if (inbound.kind === "text") {
+  //     const text = (inbound.text || "").trim();
+  //     if (text.length > 0) messageSend(connectionId, text);
+  //   } else {
+  //     // normalized payload from bridge (image/video/audio)
+  //     messageSend(connectionId, "", inbound.payload || inbound);
+  //   }
 
-    clearInbound();
-  }, [inbound, connectionId, messageSend]);
+  //   clearInbound();
+  // }, [inbound, connectionId, messageSend]);
 
 
   // Voice Recording
