@@ -16,6 +16,8 @@ run-android3:
 	powershell.exe -Command "Start-Process powershell -ArgumentList 'cd \"D:\\My Projects\\realtime-chat-expo\"; npx expo start --android'"
 #   npx expo start --android
 #	$env:EXPO_NO_DOCTOR=1; npx expo start --android
+# 01670780
+
 
 
 run-android2:
@@ -456,3 +458,52 @@ kill-metro:
 #       }
 #     }
 #   }
+
+# checking nginx port 443 runding service:
+# PS C:\tools\nginx-1.29.4> sc.exe stop nginx
+# >> sc.exe config nginx start= disabled
+# >> sc.exe delete nginx
+
+
+# PS C:\tools\nginx-1.29.4> Get-Service | findstr nginx
+# PS C:\tools\nginx-1.29.4> netstat -ano | findstr :443
+
+
+# using my nginx-helper.ps1:
+# - .\nginx-helper.ps1 start
+# - .\nginx-helper.ps1 stop
+# - .\nginx-helper.ps1 reload
+# - .\nginx-helper.ps1 status
+
+
+# Using daily clean up "nginx-clean.ps1":
+# powershell -ExecutionPolicy Bypass -File nginx-clean.ps1
+
+# PS D:\certs> openssl x509 -req -in D:\certs\bashchat.csr `
+# >>     -CA D:\certs\newRootCA.crt `
+# >>     -CAkey D:\certs\newRootCA.key `
+# >>     -CAcreateserial `
+# >>     -out D:\certs\bashchat.pem `
+# >>     -days 365 -sha256 `
+# >>     -extfile D:\certs\bashchat.ext
+# Certificate request self-signature ok
+# subject=CN=bashchat.local
+# PS D:\certs>
+
+
+# PS D:\certs> mkcert -install
+# The local CA is already installed in the system trust store! 👍
+# The local CA is already installed in Java's trust store! 👍
+
+# PS D:\certs> mkcert bashchat.local 10.0.2.2 192.168.8.207
+
+# Created a new certificate valid for the following names 📜
+#  - "bashchat.local"
+#  - "10.0.2.2"
+#  - "192.168.8.207"
+
+# The certificate is at "./bashchat.local+2.pem" and the key at "./bashchat.local+2-key.pem" ✅
+
+# It will expire on 8 April 2028 🗓
+
+# PS D:\certs>
