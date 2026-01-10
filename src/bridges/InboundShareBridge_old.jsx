@@ -33,25 +33,18 @@ export default function InboundShareBridge({ onShare }) {
       }
       lastKey = key;
 
-      // If native emitted JSON string, parse and route directly
+      // Plain string → { text }
+      // if (typeof raw === "string") {
+      //   const payload = { text: raw.trim() };
+      //   onShare ? onShare(payload) : addMessage(payload);
+      //   console.log("[Inbound Share] Payload:", payload);
+      //   return;
+      // }
+
       if (typeof raw === "string") {
-        let payload;
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object" && parsed.kind) {
-            if (parsed.kind === "text") {
-              payload = { kind: "text", text: String(parsed.text || "").trim() };
-            } else {
-              payload = { kind: "media", payload: parsed.payload || parsed };
-            }
-            console.log("[Inbound Share] Payload(parsed):", parsed);
-          }
-        } catch {
-          // Not JSON → fallback to plain text
-          payload = { kind: "text", text: raw.trim() };
-          console.log("[Inbound Share] Payload(fallback-text):", payload);
-        }
+        const payload = { kind: "text", text: raw.trim() };
         setInboundShare(payload);
+        console.log("[Inbound Share] Payload:", payload);
         return;
       }
 
@@ -59,6 +52,8 @@ export default function InboundShareBridge({ onShare }) {
       if (Array.isArray(raw)) {
         const first = raw[0];
         try {
+          // const payload = await toBashChatPayload(first);
+          // onShare ? onShare(payload) : addMessage(payload);
           const normalized = await toBashChatPayload(first);
           setInboundShare({ kind: "media", payload: normalized });
           console.log("[Inbound Share] Payload(array-first):", normalized);
@@ -70,6 +65,8 @@ export default function InboundShareBridge({ onShare }) {
 
       // Wrapped nativeEvent
       if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
+        // const payload = { text: raw.nativeEvent.trim() };
+        // onShare ? onShare(payload) : addMessage(payload);
         const payload = { kind: "text", text: raw.nativeEvent.trim() };
         setInboundShare(payload);
         console.log("[Inbound Share] Payload(nativeEvent):", payload);
@@ -78,6 +75,8 @@ export default function InboundShareBridge({ onShare }) {
 
       if (!raw) return;
       try {
+        // const payload = await toBashChatPayload(raw);
+        // onShare ? onShare(payload) : addMessage(payload);
         const normalized = await toBashChatPayload(raw);
         setInboundShare({ kind: "media", payload: normalized });
         console.log("[Inbound Share] Payload:", normalized);
