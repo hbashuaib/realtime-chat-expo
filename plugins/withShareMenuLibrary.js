@@ -3,7 +3,7 @@ console.log("withShareMenuLibrary.js loaded");
 
 const {
   withAndroidManifest,
-  withMainActivity,  
+  withMainActivity,
   withDangerousMod,
 } = require("@expo/config-plugins");
 
@@ -30,12 +30,12 @@ function withInjectLibraryShareActivity(config) {
           ".ShareMenuActivity",
           "com.anonymous.realtimechatexpo.ShareMenuActivityCanary",
           ".ShareMenuActivityCanary",
-        ].includes(a.$?.["android:name"])
+        ].includes(a.$?.["android:name"]),
     );
 
     // Remove library activity duplicates before reinjecting (normalization).
     app.activity = (app.activity || []).filter(
-      (a) => a.$?.["android:name"] !== "com.meedan.sharemenu.ShareMenuActivity"
+      (a) => a.$?.["android:name"] !== "com.meedan.sharemenu.ShareMenuActivity",
     );
 
     // Inject ONLY the library's ShareMenuActivity
@@ -45,7 +45,7 @@ function withInjectLibraryShareActivity(config) {
         "android:exported": "true",
         "android:enabled": "true",
         "android:label": SHARE_LABEL,
-        "android:icon": "@mipmap/ic_launcher", 
+        "android:icon": "@mipmap/ic_launcher",
         "android:theme": "@android:style/Theme.NoDisplay",
         "android:taskAffinity": "",
         "android:excludeFromRecents": "true",
@@ -57,7 +57,9 @@ function withInjectLibraryShareActivity(config) {
         // Text: cover common variants from Messages/links
         {
           action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [
             { $: { "android:mimeType": "text/plain" } },
             { $: { "android:mimeType": "text/*" } },
@@ -68,7 +70,9 @@ function withInjectLibraryShareActivity(config) {
         // Single images: include specific subtypes some galleries use
         {
           action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [
             { $: { "android:mimeType": "image/*" } },
             { $: { "android:mimeType": "image/jpeg" } },
@@ -78,28 +82,38 @@ function withInjectLibraryShareActivity(config) {
         },
         // Multiple images
         {
-          action: [{ $: { "android:name": "android.intent.action.SEND_MULTIPLE" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          action: [
+            { $: { "android:name": "android.intent.action.SEND_MULTIPLE" } },
+          ],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [{ $: { "android:mimeType": "image/*" } }],
         },
         // Audio (voice/music)
         {
           action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [{ $: { "android:mimeType": "audio/*" } }],
         },
 
         // Video
         {
           action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [{ $: { "android:mimeType": "video/*" } }],
         },
 
         // PDF documents
         {
           action: [{ $: { "android:name": "android.intent.action.SEND" } }],
-          category: [{ $: { "android:name": "android.intent.category.DEFAULT" } }],
+          category: [
+            { $: { "android:name": "android.intent.category.DEFAULT" } },
+          ],
           data: [{ $: { "android:mimeType": "application/pdf" } }],
         },
       ],
@@ -161,15 +175,19 @@ function withNormalizeMainActivityViewFilters(config) {
 
       if (!isMain) return act;
 
-      const filters = Array.isArray(act["intent-filter"]) ? act["intent-filter"] : [];
+      const filters = Array.isArray(act["intent-filter"])
+        ? act["intent-filter"]
+        : [];
 
       // Strip any SEND/SEND_MULTIPLE filters defensively
       // Also strip any existing VIEW filters to avoid duplicates
       const withoutSendOrView = filters.filter((f) => {
         const actions = (f.action || []).map((a) => a.$?.["android:name"]);
-        return !actions.includes("android.intent.action.SEND") &&
-              !actions.includes("android.intent.action.SEND_MULTIPLE") &&
-              !actions.includes("android.intent.action.VIEW");
+        return (
+          !actions.includes("android.intent.action.SEND") &&
+          !actions.includes("android.intent.action.SEND_MULTIPLE") &&
+          !actions.includes("android.intent.action.VIEW")
+        );
       });
 
       // Inject a single canonical VIEW filter with both schemes
@@ -198,6 +216,7 @@ function withNormalizeMainActivityViewFilters(config) {
   });
 }
 
+// Patch MainActivity.kt to handle share intents robustly with logging
 function withMainActivityLogging(config) {
   return withMainActivity(config, (cfg) => {
     let src = cfg.modResults.contents;
@@ -215,7 +234,7 @@ import com.facebook.react.ReactInstanceEventListener
 import com.anonymous.realtimechatexpo.R
 import com.anonymous.realtimechatexpo.BuildConfig
 
-`
+`,
       );
     }
 
@@ -224,7 +243,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
       src = src.replace(
         /(package[^\n]*\n)/,
         `$1import android.os.Bundle
-`
+`,
       );
     }
 
@@ -237,7 +256,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
   companion object {
     var pendingShareStatic: Intent? = null
   }
-`
+`,
       );
     }
 
@@ -254,7 +273,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
     emitShareIntentToJS(intent)
   }
   super.onCreate(null)
-}`
+}`,
       );
     }
 
@@ -290,7 +309,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
 }
 
-`
+`,
       );
     }
 
@@ -300,7 +319,9 @@ import com.anonymous.realtimechatexpo.BuildConfig
     const needsHelperForward = !src.includes("private fun forwardIntentToJS(");
 
     if (needsOnNewIntent || needsHelperEmit || needsHelperForward) {
-      src = src.replace(/}\s*$/, String.raw`
+      src = src.replace(
+        /}\s*$/,
+        String.raw`
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
@@ -320,7 +341,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
     val context = manager.currentReactContext
 
     if (context == null) {
-      android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing share")
+      android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing NEW share (overwrite)")
+      // Always replace stale with latest
       pendingShareIntent = intent
       pendingShareStatic = intent
 
@@ -329,6 +351,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
           android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
           val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
+          // First flush ~2.5s
           handler.postDelayed({
             val toForward = pendingShareIntent ?: pendingShareStatic
             android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
@@ -336,23 +359,34 @@ import com.anonymous.realtimechatexpo.BuildConfig
               // forward on UI thread
               handler.post {
                 forwardIntentToJS(readyContext, toForward)
-              }
-              pendingShareIntent = null
-              // ❌ Keep static for secondary attempt
+                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+              }                           
             }
           }, 2500)
 
+          // Second flush ~5s
           handler.postDelayed({
             val toForward2 = pendingShareIntent ?: pendingShareStatic
             android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward2 != null) {
               handler.post {
                 forwardIntentToJS(readyContext, toForward2)
-              }
-              pendingShareIntent = null
-              pendingShareStatic = null // ✅ finally clear static
+                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+              }              
             }
           }, 5000)
+
+          // Optional third flush ~8s (safety net)
+          handler.postDelayed({
+            val toForward3 = pendingShareIntent ?: pendingShareStatic
+            android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+            if (toForward3 != null) {
+              handler.post {
+                forwardIntentToJS(readyContext, toForward3)
+                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+              }              
+            }
+          }, 8000)
 
           manager.removeReactInstanceEventListener(this)
         }
@@ -363,7 +397,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
       try {
         manager.createReactContextInBackground()
       } catch (e: Exception) {
-        android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${'${'}e.message${'}'}", e)
+        android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
       }
 
       // Fallback recreate if still null at ~3500ms
@@ -373,7 +407,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
           try {
             manager.recreateReactContextInBackground()
           } catch (e: Exception) {
-            android.util.Log.e("BashChatTest", "!!! Failed to recreate React context: ${'${'}e.message${'}'}", e)
+            android.util.Log.e("BashChatTest", "!!! Failed to recreate React context: ${"${"}e.message${"}"}", e)
           }
         }
       }, 3500)
@@ -381,10 +415,11 @@ import com.anonymous.realtimechatexpo.BuildConfig
       return
     }
 
-    // forward on UI thread
+    // ReactContext is ready — forward immediately on UI thread
     val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     uiHandler.post {
       forwardIntentToJS(context, intent)
+      // ❌ Do not clear here — forwardIntentToJS clears after successful emit
     }
   }
 
@@ -397,17 +432,36 @@ import com.anonymous.realtimechatexpo.BuildConfig
         android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
         return
     }
+    
+    fun normalizeText(raw: String): String {
+        // Trim whitespace and common quote characters to avoid "\"text\"" payloads
+        return raw.trim().trim('"').trim('“').trim('”').trim('\'')
+    }
 
     fun emitJson(json: String) {
-        com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+        // Always overwrite pending with the latest
+        //com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+        
         val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
         uiHandler.post {
             try {
-                android.util.Log.e("BashChatTest", ">>> Emitting to JS: $json")
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit("onShareReceived", json)
+                if (context.hasActiveCatalystInstance()) {
+                    android.util.Log.e("BashChatTest", ">>> Emitting to JS: $json")
+                    context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                        .emit("onShareReceived", json)
+
+                    // Clear after successful emit
+                    pendingShareIntent = null
+                    pendingShareStatic = null
+                } else {
+                    android.util.Log.e("BashChatTest", ">>> ReactContext not active, skipping emit")
+                    // Keep pending so flushes can retry
+                    pendingShareIntent = intent
+                    pendingShareStatic = intent
+                }               
             } catch (e: Exception) {
-                android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${'${'}e.message${'}'}", e)
+                android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${"${"}e.message${"}"}", e)
+                // Keep pending for JS to pull later via consumePendingShare()
             }
         }
     }
@@ -416,8 +470,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
     if (type.startsWith("text/")) {
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         if (!sharedText.isNullOrEmpty()) {
-            val cleaned = stripUrls(sharedText)
-            val json = """{"kind":"text","text":${'${'}escapeJson(cleaned)${'}'}}"""
+            val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+            val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
             android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
             emitJson(json)
             return
@@ -425,8 +479,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
         val clip = intent.clipData
         val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
         if (!clipText.isNullOrEmpty()) {
-            val cleaned = stripUrls(clipText.toString())
-            val json = """{"kind":"text","text":${'${'}escapeJson(cleaned)${'}'}}"""
+            val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+            val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
             android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
             emitJson(json)
             return
@@ -446,19 +500,19 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
         val json = when {
             mime.startsWith("image/") ->
-                """{"kind":"image","payload":{"base64":"$base64","filename":${'${'}escapeJson(filename)${'}'}}}"""
+                """{"kind":"image","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
             mime.startsWith("video/") ->
-                """{"kind":"video","payload":{"video":"$base64","video_filename":${'${'}escapeJson(filename)${'}'}}}"""
+                """{"kind":"video","payload":{"video":"$base64","video_filename":${"${"}escapeJson(filename)${"}"}}}"""
             mime.startsWith("audio/") ->
-                """{"kind":"voice","payload":{"base64":"$base64","filename":${'${'}escapeJson(filename)${'}'}}}"""
+                """{"kind":"voice","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
             mime == "application/pdf" ->
-                """{"kind":"document","payload":{"base64":"$base64","filename":${'${'}escapeJson(filename)${'}'}}}"""
+                """{"kind":"document","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
             else ->
-                """{"kind":"uri","uri":${'${'}escapeJson(streamUri.toString())${'}'},"mime":${'${'}escapeJson(mime)${'}'}}"""
+                """{"kind":"uri","uri":${"${"}escapeJson(streamUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
         }
 
         android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
-        emitJson(json)
+        emitJson(json)        
         return
     }
 
@@ -468,15 +522,15 @@ import com.anonymous.realtimechatexpo.BuildConfig
     val anyText = item?.text
     val anyUri = item?.uri
     if (!anyText.isNullOrEmpty()) {
-        val cleaned = stripUrls(anyText.toString())
-        val json = """{"kind":"text","text":${'${'}escapeJson(cleaned)${'}'}}"""
+        val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
+        val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
         android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
         emitJson(json)
         return
     }
     if (anyUri != null) {
         val mime = applicationContext.contentResolver.getType(anyUri) ?: type
-        val json = """{"kind":"uri","uri":${'${'}escapeJson(anyUri.toString())${'}'},"mime":${'${'}escapeJson(mime)${'}'}}"""
+        val json = """{"kind":"uri","uri":${"${"}escapeJson(anyUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
         android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
         emitJson(json)
         return
@@ -498,7 +552,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
         android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
       }
     } catch (e: Exception) {
-      android.util.Log.e("BashChatTest", "readUriToBase64 failed: ${'${'}e.message${'}'}", e)
+      android.util.Log.e("BashChatTest", "readUriToBase64 failed: ${"${"}e.message${"}"}", e)
       null
     }
   }
@@ -519,11 +573,11 @@ import com.anonymous.realtimechatexpo.BuildConfig
     if (last.isNotBlank()) return last
     val mime = resolver.getType(uri) ?: ""
     return when {
-      mime.startsWith("image/") -> "share_${'${'}System.currentTimeMillis()${'}'}.jpg"
-      mime.startsWith("video/") -> "share_${'${'}System.currentTimeMillis()${'}'}.mp4"
-      mime.startsWith("audio/") -> "share_${'${'}System.currentTimeMillis()${'}'}.m4a"
-      mime == "application/pdf" -> "share_${'${'}System.currentTimeMillis()${'}'}.pdf"
-      else -> "share_${'${'}System.currentTimeMillis()${'}'}.bin"
+      mime.startsWith("image/") -> "share_${"${"}System.currentTimeMillis()${"}"}.jpg"
+      mime.startsWith("video/") -> "share_${"${"}System.currentTimeMillis()${"}"}.mp4"
+      mime.startsWith("audio/") -> "share_${"${"}System.currentTimeMillis()${"}"}.m4a"
+      mime == "application/pdf" -> "share_${"${"}System.currentTimeMillis()${"}"}.pdf"
+      else -> "share_${"${"}System.currentTimeMillis()${"}"}.bin"
     }
   }
 
@@ -535,7 +589,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
                .trim()
   }
 }
-`);
+`,
+      );
     }
 
     cfg.modResults.contents = src;
@@ -543,7 +598,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
   });
 }
 
-
+// Create BashShareModule.kt and BashSharePackage.kt for native share queueing
 function withBashShareNativeModule(config) {
   return withDangerousMod(config, [
     "android",
@@ -557,7 +612,7 @@ function withBashShareNativeModule(config) {
         "java",
         "com",
         "anonymous",
-        "realtimechatexpo"
+        "realtimechatexpo",
       );
       fs.mkdirSync(srcDir, { recursive: true });
 
@@ -632,7 +687,7 @@ class BashSharePackage : ReactPackage {
   ]);
 }
 
-
+// Register BashSharePackage in MainApplication.kt
 function withRegisterBashSharePackage(config) {
   return withDangerousMod(config, [
     "android",
@@ -647,17 +702,19 @@ function withRegisterBashSharePackage(config) {
         "com",
         "anonymous",
         "realtimechatexpo",
-        "MainApplication.kt"
+        "MainApplication.kt",
       );
       if (!fs.existsSync(appPath)) return cfg;
 
       let src = fs.readFileSync(appPath, "utf8");
 
       // Ensure import
-      if (!src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")) {
+      if (
+        !src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")
+      ) {
         src = src.replace(
           /(package[^\n]*\n)/,
-          `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`
+          `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`,
         );
       }
 
@@ -667,19 +724,19 @@ function withRegisterBashSharePackage(config) {
         // New arch style: PackageList(this).packages.apply { … }
         src = src.replace(
           /(PackageList\(this\)\.packages\.apply\s*\{)/,
-          `$1\n      add(BashSharePackage())`
+          `$1\n      add(BashSharePackage())`,
         );
 
         // Classic listOf style
         src = src.replace(
           /(packages\s*=\s*listOf\([^\)]*)\)/,
-          `$1,\n            BashSharePackage()\n        )`
+          `$1,\n            BashSharePackage()\n        )`,
         );
 
         // Fallback: return listOf style
         src = src.replace(
           /(return\s+listOf\([^\)]*)\)/,
-          `$1,\n            BashSharePackage()\n        )`
+          `$1,\n            BashSharePackage()\n        )`,
         );
       }
 
@@ -689,7 +746,6 @@ function withRegisterBashSharePackage(config) {
     },
   ]);
 }
-
 
 // Create ShareMenuActivity.java earlier so Gradle compiles it
 function withShareMenuActivityJava(config) {
@@ -705,7 +761,7 @@ function withShareMenuActivityJava(config) {
         "java",
         "com",
         "anonymous",
-        "realtimechatexpo"
+        "realtimechatexpo",
       );
       const filePath = path.join(srcDir, "ShareMenuActivity.java");
 
@@ -824,10 +880,11 @@ function withNoOpMainActivity(config) {
   return withMainActivity(config, (cfg) => cfg);
 }
 
+// Export the combined plugin
 module.exports = function withShareMenuLibrary(config) {
   config = withInjectLibraryShareActivity(config);
   config = withNormalizeMainActivityViewFilters(config);
-  config = withNoOpMainActivity(config);  
+  config = withNoOpMainActivity(config);
   config = withMainActivityLogging(config);
   config = withShareMenuActivityJava(config);
   config = withNormalizeAppIcon(config);

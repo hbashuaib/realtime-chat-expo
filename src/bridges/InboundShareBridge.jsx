@@ -6,11 +6,11 @@ import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
 import { AppState, DeviceEventEmitter, NativeModules } from "react-native";
 
-export default function InboundShareBridge({ onShare }) {  
+export default function InboundShareBridge({ onShare }) {
   // const addMessage = useGlobal((s) => s.addMessage);
   const setInboundShare = useGlobal((s) => s.setInboundShare);
-  
-  const BashShareModule = NativeModules.BashShareModule;  // ✅ correct reference
+
+  const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
 
   useEffect(() => {
     console.log("[Inbound Share] JS listener mounted");
@@ -20,13 +20,14 @@ export default function InboundShareBridge({ onShare }) {
     const consume = async (raw) => {
       console.log("[Inbound Share] Event received:", raw, typeof raw);
 
-      // De-duplication key
+      // De-duplication key (stringify for stronger comparison)
       const key =
         typeof raw === "string"
           ? raw
           : Array.isArray(raw)
-          ? raw[0]
-          : raw?.uri || String(raw);
+            ? JSON.stringify(raw[0])
+            : raw?.uri || JSON.stringify(raw);
+
       if (key && key === lastKey) {
         console.log("[Inbound Share] Duplicate event ignored");
         return;
@@ -39,8 +40,19 @@ export default function InboundShareBridge({ onShare }) {
         try {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === "object" && parsed.kind) {
+            // ✅ Drop stale payload if a newer one is already queued
+            const rawKey = JSON.stringify(parsed);
+            if (lastKey && lastKey !== rawKey) {
+              console.log("[Inbound Share] Dropping stale payload:", parsed);
+              return;
+            }
+            lastKey = rawKey;
+
             if (parsed.kind === "text") {
-              payload = { kind: "text", text: String(parsed.text || "").trim() };
+              payload = {
+                kind: "text",
+                text: String(parsed.text || "").trim(),
+              };
             } else {
               payload = { kind: "media", payload: parsed.payload || parsed };
             }
@@ -62,6 +74,7 @@ export default function InboundShareBridge({ onShare }) {
           const normalized = await toBashChatPayload(first);
           setInboundShare({ kind: "media", payload: normalized });
           console.log("[Inbound Share] Payload(array-first):", normalized);
+          lastKey = JSON.stringify(normalized); // ✅ mark array payload as consumed
         } catch (e) {
           console.log("[Inbound Share] Error building payload from array:", e);
         }
@@ -69,24 +82,34 @@ export default function InboundShareBridge({ onShare }) {
       }
 
       // Wrapped nativeEvent
-      if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
+      if (
+        raw &&
+        typeof raw === "object" &&
+        typeof raw.nativeEvent === "string"
+      ) {
         const payload = { kind: "text", text: raw.nativeEvent.trim() };
         setInboundShare(payload);
         console.log("[Inbound Share] Payload(nativeEvent):", payload);
+        lastKey = JSON.stringify(payload); // ✅ mark nativeEvent payload as consumed
         return;
       }
 
+      // Single item → normalize
       if (!raw) return;
       try {
         const normalized = await toBashChatPayload(raw);
         setInboundShare({ kind: "media", payload: normalized });
         console.log("[Inbound Share] Payload:", normalized);
+        lastKey = JSON.stringify(normalized); // ✅ mark media payload as consumed
       } catch (e) {
         console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
       }
     };
 
-    const subDevice = DeviceEventEmitter.addListener("onShareReceived", consume);
+    const subDevice = DeviceEventEmitter.addListener(
+      "onShareReceived",
+      consume,
+    );
 
     // One-shot pulls of any queued share from native
     const pullOnce = async () => {
@@ -95,6 +118,8 @@ export default function InboundShareBridge({ onShare }) {
         if (pending) {
           console.log("[Inbound Share] Pulled pending:", pending);
           await consume(pending);
+          // ✅ Update dedup key to latest
+          //lastKey = JSON.stringify(pending);
         }
       } catch (e) {
         console.log("[Inbound Share] Error pulling pending:", e);
@@ -102,7 +127,7 @@ export default function InboundShareBridge({ onShare }) {
     };
 
     // Immediate and timed retries to align with native 2-stage flushes
-    pullOnce();                       // immediate
+    pullOnce(); // immediate
     const t1 = setTimeout(pullOnce, 2000); // aligns with 2.5s native flush
     const t2 = setTimeout(pullOnce, 5000); // aligns with 5s secondary flush
     const t3 = setTimeout(pullOnce, 8000);
@@ -114,13 +139,14 @@ export default function InboundShareBridge({ onShare }) {
     const appStateSub = AppState.addEventListener("change", onAppState);
 
     return () => {
-      try { subDevice.remove(); } catch {}
+      try {
+        subDevice.remove();
+      } catch {}
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
       appStateSub?.remove?.();
     };
-
   }, [setInboundShare, onShare]);
 
   return null;
@@ -132,20 +158,30 @@ function inferMimeFromUri(uri) {
   const ext = uri?.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "jpg":
-    case "jpeg": return "image/jpeg";
-    case "png": return "image/png";
-    case "gif": return "image/gif";
-    case "webp": return "image/webp";
-    case "mp4": return "video/mp4";
-    case "mov": return "video/quicktime";
-    case "m4a": return "audio/m4a";
-    case "aac": return "audio/aac";
-    case "mp3": return "audio/mpeg";
-    case "wav": return "audio/wav";
-    default: return undefined;
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "mp4":
+      return "video/mp4";
+    case "mov":
+      return "video/quicktime";
+    case "m4a":
+      return "audio/m4a";
+    case "aac":
+      return "audio/aac";
+    case "mp3":
+      return "audio/mpeg";
+    case "wav":
+      return "audio/wav";
+    default:
+      return undefined;
   }
 }
-
 
 function getFilenameFromUri(uri, fallback = "share") {
   try {
