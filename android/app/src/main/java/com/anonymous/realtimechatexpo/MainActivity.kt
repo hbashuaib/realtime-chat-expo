@@ -25,6 +25,7 @@ class MainActivity : ReactActivity() {
   companion object {
     var pendingShareStatic: Intent? = null
   }
+  private var shareInitListenerAdded: Boolean = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
@@ -83,31 +84,54 @@ class MainActivity : ReactActivity() {
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
-  override fun onResume() {
-    super.onResume()
-    val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
-    val toForward = pendingShareIntent ?: pendingShareStatic
-    if (toForward != null) {
-      val handler = android.os.Handler(android.os.Looper.getMainLooper())
-      handler.postDelayed(object : Runnable {
-        override fun run() {
-          val context = manager.currentReactContext
-          if (context != null) {
-            android.util.Log.e("BashChatTest", ">>> onResume retry flush: forwarding pending share")
-            forwardIntentToJS(context, toForward)
-            pendingShareIntent = null
-            pendingShareStatic = null
-          } else {
-            android.util.Log.e("BashChatTest", ">>> onResume retry flush: context still null, retrying…")
-            handler.postDelayed(this, 500)
-          }
-        }
-      }, 500)
-    } else {
-      android.util.Log.e("BashChatTest", ">>> onResume: nothing queued to forward")
-    }
-  }
+  // override fun onResume() {
+  //   super.onResume()
+  //   val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+  //   val toForward = pendingShareIntent ?: pendingShareStatic
+  //   // if (toForward != null) {
+  //   //   val handler = android.os.Handler(android.os.Looper.getMainLooper())
+  //   //   handler.postDelayed(object : Runnable {
+  //   //     override fun run() {
+  //   //       val context = manager.currentReactContext
+  //   //       if (context != null) {
+  //   //         android.util.Log.e("BashChatTest", ">>> onResume retry flush: forwarding pending share")
+  //   //         forwardIntentToJS(context, toForward)
+  //   //         pendingShareIntent = null
+  //   //         pendingShareStatic = null
+  //   //       } else {
+  //   //         android.util.Log.e("BashChatTest", ">>> onResume retry flush: context still null, retrying…")
+  //   //         handler.postDelayed(this, 500)
+  //   //       }
+  //   //     }
+  //   //   }, 500)
+  //   // } else {
+  //   //   android.util.Log.e("BashChatTest", ">>> onResume: nothing queued to forward")
+  //   // }
 
+  //   if (toForward != null) {
+  //     val handler = android.os.Handler(android.os.Looper.getMainLooper())
+  //     handler.postDelayed(object : Runnable {
+  //       override fun run() {
+  //         val context = manager.currentReactContext
+  //         if (context != null) {
+  //           android.util.Log.e("BashChatTest", ">>> onResume retry flush: forwarding pending share")
+  //           forwardIntentToJS(context, toForward)
+  //           pendingShareIntent = null
+  //         } else {
+  //           android.util.Log.e("BashChatTest", ">>> onResume retry flush: context still null, retrying…")
+  //           handler.postDelayed(this, 500)
+  //         }
+  //       }
+  //     }, 500)
+  //   } else {
+  //     android.util.Log.e("BashChatTest", ">>> onResume: nothing queued to forward")
+  //   }
+  // }   
+
+  override fun onResume() {
+      super.onResume()
+      android.util.Log.e("BashChatTest", ">>> onResume: listener handles delivery; no manual flush")
+  }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
@@ -138,66 +162,112 @@ class MainActivity : ReactActivity() {
           android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
           val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
-          // First flush ~2.5s
+          // // First flush ~2.5s
+          // handler.postDelayed({
+          //   val toForward = pendingShareIntent ?: pendingShareStatic
+          //   android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
+          //   if (toForward != null) {
+          //     // forward on UI thread
+          //     handler.post {
+          //       forwardIntentToJS(readyContext, toForward)
+          //       // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+          //     }                           
+          //   }
+          // }, 2500)
+
+          // Immediate flush as soon as context is ready
+          val immediate = pendingShareIntent ?: pendingShareStatic
+          if (immediate != null) {
+            handler.post {
+              android.util.Log.e("BashChatTest", ">>> Forwarding pending share immediately")
+              forwardIntentToJS(readyContext, immediate)
+              // forwardIntentToJS will clear queues only after successful emit
+              // Do not clear here; let emitJson decide
+            }
+          } else {
+            android.util.Log.e("BashChatTest", ">>> No pending share at immediate flush")
+          }
+
+          // First delayed flush ~2.5s
           handler.postDelayed({
             val toForward = pendingShareIntent ?: pendingShareStatic
             android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward != null) {
-              // forward on UI thread
-              handler.post {
-                forwardIntentToJS(readyContext, toForward)
-                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
-              }                           
+              forwardIntentToJS(readyContext, toForward)
+              // ❌ Do not clear here — emitJson clears after success
             }
           }, 2500)
 
-          // Second flush ~5s
+
+          // // Second flush ~5s
+          // handler.postDelayed({
+          //   val toForward2 = pendingShareIntent ?: pendingShareStatic
+          //   android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+          //   if (toForward2 != null) {
+          //     handler.post {
+          //       forwardIntentToJS(readyContext, toForward2)
+          //       // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+          //     }              
+          //   }
+          // }, 5000)
+
+          // Second delayed flush ~5s
           handler.postDelayed({
             val toForward2 = pendingShareIntent ?: pendingShareStatic
             android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward2 != null) {
-              handler.post {
-                forwardIntentToJS(readyContext, toForward2)
-                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
-              }              
+              forwardIntentToJS(readyContext, toForward2)
+              // ❌ Do not clear here — emitJson clears after success
             }
           }, 5000)
 
-          // Optional third flush ~8s (safety net)
+          // // Optional third flush ~8s (safety net)
+          // handler.postDelayed({
+          //   val toForward3 = pendingShareIntent ?: pendingShareStatic
+          //   android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+          //   if (toForward3 != null) {
+          //     handler.post {
+          //       forwardIntentToJS(readyContext, toForward3)
+          //       // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+          //     }              
+          //   }
+          // }, 8000)
+
+          // Optional third flush ~8s
           handler.postDelayed({
             val toForward3 = pendingShareIntent ?: pendingShareStatic
             android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms). instance=$pendingShareIntent static=$pendingShareStatic")
             if (toForward3 != null) {
-              handler.post {
-                forwardIntentToJS(readyContext, toForward3)
-                // ❌ Do not clear here — forwardIntentToJS clears after successful emit
-              }              
+              forwardIntentToJS(readyContext, toForward3)
             }
           }, 8000)
 
           manager.removeReactInstanceEventListener(this)
+          
         }
       })
+      
 
-      // Force-create React context unconditionally
-      android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
-      try {
-        manager.createReactContextInBackground()
-      } catch (e: Exception) {
-        android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${e.message}", e)
-      }
+      // // Force-create React context unconditionally
+      // android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
+      // try {
+      //   manager.createReactContextInBackground()
+      // } catch (e: Exception) {
+      //   android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${e.message}", e)
+      // }
 
       // Fallback recreate if still null at ~3500ms
       android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
         if (manager.currentReactContext == null) {
           android.util.Log.e("BashChatTest", ">>> Recreating React context in background (fallback)")
           try {
-            manager.recreateReactContextInBackground()
+            android.util.Log.e("BashChatTest", ">>> Manager React context in background (fallback)")
+            // manager.recreateReactContextInBackground()
           } catch (e: Exception) {
             android.util.Log.e("BashChatTest", "!!! Failed to recreate React context: ${e.message}", e)
           }
         }
-      }, 3500)
+      }, 3500)    
 
       return
     }
@@ -215,64 +285,144 @@ class MainActivity : ReactActivity() {
     val type = intent.type ?: ""
     android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
 
+    // Only handle SEND actions here
     if (Intent.ACTION_SEND != action) {
         android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
         return
     }
     
+    // Helper to escape JSON strings
     fun normalizeText(raw: String): String {
         // Trim whitespace and common quote characters to avoid "\"text\"" payloads
         return raw.trim().trim('"').trim('“').trim('”').trim('\'')
     }
 
-    fun emitJson(json: String) {
-        // Always overwrite pending with the latest
-        //com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+    // // Emit JSON to JS module
+    // fun emitJson(json: String) {
+    //     // Always overwrite pending with the latest
+    //     //com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
         
+    //     val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    //     uiHandler.post {
+    //         try {
+    //             if (context.hasActiveCatalystInstance()) {
+    //                 android.util.Log.e("BashChatTest", ">>> Emitting to JS: $json")
+    //                 context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+    //                     .emit("onShareReceived", json)
+
+    //                 // Clear after successful emit
+    //                 pendingShareIntent = null
+    //                 pendingShareStatic = null
+    //             } else {
+    //                 android.util.Log.e("BashChatTest", ">>> ReactContext not active, skipping emit")
+    //                 // Keep pending so flushes can retry
+    //                 pendingShareIntent = intent
+    //                 pendingShareStatic = intent
+    //             }               
+    //         } catch (e: Exception) {
+    //             android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${e.message}", e)
+    //             // Keep pending for JS to pull later via consumePendingShare()
+    //         }
+    //     }
+    // }  
+
+    // New Emit JSON to JS module (safe queue via reflection)
+    // fun emitJson(json: String) {
+    //     // Safe queue via reflection
+    //     try {
+    //         val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
+    //         val method = cls.getMethod("setPending", String::class.java)
+    //         method.invoke(null, json)
+    //     } catch (e: Exception) {
+    //         android.util.Log.e("BashChatTest", "Queue not available yet (reflection): ${e.message}", e)
+    //     }
+
+    //     // Guard against null or inactive ReactContext
+    //     if (context != null && context.hasActiveCatalystInstance()) {
+    //         try {
+    //             context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+    //                 .emit("onShareReceived", json)
+    //             android.util.Log.e("BashChatTest", ">>> Emitted to JS: $json")
+    //         } catch (e: Exception) {
+    //             android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${e.message}", e)
+    //         }
+    //     } else {
+    //         android.util.Log.e("BashChatTest", ">>> ReactContext not active, queuing intent")
+    //         pendingShareIntent = intent
+    //         pendingShareStatic = intent
+    //     }
+    // }
+
+    // Latest Emit JSON to JS module (with queue clearing on success)
+    fun emitJson(json: String) {
+      // Always queue latest via reflection (safe if class missing)
+      try {
+        val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
+        val method = cls.getMethod("setPending", String::class.java)
+        method.invoke(null, json)
+      } catch (e: Exception) {
+        android.util.Log.e("BashChatTest", "Queue not available yet (reflection): ${e.message}", e)
+      }
+
+      // Emit only when context is active; run on UI thread and clear on success
+      if (context != null && context.hasActiveCatalystInstance()) {
         val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
         uiHandler.post {
-            try {
-                if (context.hasActiveCatalystInstance()) {
-                    android.util.Log.e("BashChatTest", ">>> Emitting to JS: $json")
-                    context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                        .emit("onShareReceived", json)
+          var emitted = false
+          try {
+            context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+              .emit("onShareReceived", json)
+            emitted = true
+            android.util.Log.e("BashChatTest", ">>> Emitted to JS (UI): $json")
+          } catch (e: Exception) {
+            android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${e.message}", e)
+          }
 
-                    // Clear after successful emit
-                    pendingShareIntent = null
-                    pendingShareStatic = null
-                } else {
-                    android.util.Log.e("BashChatTest", ">>> ReactContext not active, skipping emit")
-                    // Keep pending so flushes can retry
-                    pendingShareIntent = intent
-                    pendingShareStatic = intent
-                }               
-            } catch (e: Exception) {
-                android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${e.message}", e)
-                // Keep pending for JS to pull later via consumePendingShare()
-            }
+          if (emitted) {
+            // Clear both queues after successful emit
+            pendingShareIntent = null
+            pendingShareStatic = null
+            // Also clear native queue (optional)
+            try {
+              val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
+              val consume = cls.getMethod("consume")
+              consume.invoke(null)
+            } catch (_: Exception) {}
+          } else {
+            // Keep pending for retries
+            pendingShareIntent = intent
+            pendingShareStatic = intent
+          }
         }
+      } else {
+        android.util.Log.e("BashChatTest", ">>> ReactContext not active, queuing intent")
+        pendingShareIntent = intent
+        pendingShareStatic = intent
+      }
     }
 
     // TEXT: strip URLs
     if (type.startsWith("text/")) {
-        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-        if (!sharedText.isNullOrEmpty()) {
-            val cleaned = normalizeText(stripUrls(sharedText ?: ""))
-            val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-            android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
-            emitJson(json)
-            return
-        }
-        val clip = intent.clipData
-        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-        if (!clipText.isNullOrEmpty()) {
-            val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
-            val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-            android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
-            emitJson(json)
-            return
-        }
-        return
+      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+      if (!sharedText.isNullOrEmpty()) {
+          val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+          val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+          android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
+          emitJson(json)
+          android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
+          return
+      }
+      val clip = intent.clipData
+      val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+      if (!clipText.isNullOrEmpty()) {
+          val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+          val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+          android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
+          emitJson(json)
+          android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
+          return
+      }
+      return
     }
 
     // STREAMS: image/audio/video/pdf
@@ -280,27 +430,28 @@ class MainActivity : ReactActivity() {
         ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
 
     if (streamUri != null) {
-        val resolver = applicationContext.contentResolver
-        val mime = resolver.getType(streamUri) ?: type
-        val base64 = readUriToBase64(resolver, streamUri)
-        val filename = guessFilename(resolver, streamUri)
+      val resolver = applicationContext.contentResolver
+      val mime = resolver.getType(streamUri) ?: type
+      val base64 = readUriToBase64(resolver, streamUri)
+      val filename = guessFilename(resolver, streamUri)
 
-        val json = when {
-            mime.startsWith("image/") ->
-                """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-            mime.startsWith("video/") ->
-                """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
-            mime.startsWith("audio/") ->
-                """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-            mime == "application/pdf" ->
-                """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-            else ->
-                """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
-        }
+      val json = when {
+          mime.startsWith("image/") ->
+              """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+          mime.startsWith("video/") ->
+              """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
+          mime.startsWith("audio/") ->
+              """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+          mime == "application/pdf" ->
+              """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+          else ->
+              """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
+      }
 
-        android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
-        emitJson(json)        
-        return
+      android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
+      emitJson(json)    
+      android.util.Log.e("BashChatTest", ">>> Called emitJson with stream payload")    
+      return
     }
 
     // Fallbacks
@@ -309,21 +460,22 @@ class MainActivity : ReactActivity() {
     val anyText = item?.text
     val anyUri = item?.uri
     if (!anyText.isNullOrEmpty()) {
-        val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
-        val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-        android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
-        emitJson(json)
-        return
+      val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
+      val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+      android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
+      emitJson(json)
+      return
     }
     if (anyUri != null) {
-        val mime = applicationContext.contentResolver.getType(anyUri) ?: type
-        val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
-        android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
-        emitJson(json)
-        return
+      val mime = applicationContext.contentResolver.getType(anyUri) ?: type
+      val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
+      android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
+      emitJson(json)
+      return
     }
   }
 
+  // Helper to escape JSON strings
   private fun escapeJson(raw: String): String {
     val s = raw.replace("\\", "\\\\")
                .replace("\"", "\\\"")
@@ -332,6 +484,7 @@ class MainActivity : ReactActivity() {
     return "\"$s\""
   }
 
+  // Helper to read URI content as Base64
   private fun readUriToBase64(resolver: android.content.ContentResolver, uri: android.net.Uri): String? {
     return try {
       resolver.openInputStream(uri)?.use { input ->
@@ -344,6 +497,7 @@ class MainActivity : ReactActivity() {
     }
   }
 
+  // Helper to guess filename from URI
   private fun guessFilename(resolver: android.content.ContentResolver, uri: android.net.Uri): String {
     try {
       resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
@@ -368,6 +522,7 @@ class MainActivity : ReactActivity() {
     }
   }
 
+  // Helper to strip URLs from shared text
   private fun stripUrls(text: String): String {
     val urlRegex = Regex("\\bhttps?://\\S+", RegexOption.IGNORE_CASE)
     return text.replace(urlRegex, "")

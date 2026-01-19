@@ -32,38 +32,62 @@ export default function InboundShareBridge({ onShare }) {
         console.log("[Inbound Share] Duplicate event ignored");
         return;
       }
-      lastKey = key;
+
+      // // …process payload…
+      // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+      // lastKey = key; // mark consumed using the same key used for comparison
 
       // If native emitted JSON string, parse and route directly
       if (typeof raw === "string") {
         let payload;
         try {
           const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object" && parsed.kind) {
-            // ✅ Drop stale payload if a newer one is already queued
-            const rawKey = JSON.stringify(parsed);
-            if (lastKey && lastKey !== rawKey) {
-              console.log("[Inbound Share] Dropping stale payload:", parsed);
-              return;
-            }
-            lastKey = rawKey;
+          // if (parsed && typeof parsed === "object" && parsed.kind) {
+          //   // ✅ Drop stale payload if a newer one is already queued
+          //   const rawKey = JSON.stringify(parsed);
+          //   if (lastKey && lastKey !== rawKey) {
+          //     console.log("[Inbound Share] Dropping stale payload:", parsed);
+          //     return;
+          //   }
+          //   lastKey = rawKey;
 
+          //   if (parsed.kind === "text") {
+          //     payload = {
+          //       kind: "text",
+          //       text: String(parsed.text || "").trim(),
+          //     };
+          //   } else {
+          //     payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);
+          //   }
+          //   console.log("[Inbound Share] Payload(parsed):", parsed);
+          // }
+          if (parsed && typeof parsed === "object" && parsed.kind) {
             if (parsed.kind === "text") {
               payload = {
                 kind: "text",
                 text: String(parsed.text || "").trim(),
               };
+              lastKey = JSON.stringify(payload); // ✅ mark text payload as consumed
             } else {
-              payload = { kind: "media", payload: parsed.payload || parsed };
+              payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);
+              lastKey = JSON.stringify(payload); // ✅ mark media payload as consumed
             }
             console.log("[Inbound Share] Payload(parsed):", parsed);
           }
         } catch {
           // Not JSON → fallback to plain text
-          payload = { kind: "text", text: raw.trim() };
+          payload = { kind: "text", text: raw.trim() }; lastKey = JSON.stringify(payload);
+          lastKey = JSON.stringify(payload); // ✅ mark fallback text as consumed
           console.log("[Inbound Share] Payload(fallback-text):", payload);
         }
-        setInboundShare(payload);
+        // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+
+        if (typeof onShare === "function") {
+          onShare(payload);
+        } else {
+          if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+        }
+
         return;
       }
 
@@ -88,7 +112,14 @@ export default function InboundShareBridge({ onShare }) {
         typeof raw.nativeEvent === "string"
       ) {
         const payload = { kind: "text", text: raw.nativeEvent.trim() };
-        setInboundShare(payload);
+        // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+
+        if (typeof onShare === "function") {
+          onShare(payload);
+        } else {
+          if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+        }
+
         console.log("[Inbound Share] Payload(nativeEvent):", payload);
         lastKey = JSON.stringify(payload); // ✅ mark nativeEvent payload as consumed
         return;
@@ -106,37 +137,50 @@ export default function InboundShareBridge({ onShare }) {
       }
     };
 
+    // const subDevice = DeviceEventEmitter.addListener(
+    //   "onShareReceived",
+    //   consume,
+    // );
+
     const subDevice = DeviceEventEmitter.addListener(
       "onShareReceived",
-      consume,
+      (payload) => {
+        console.log(">>> [Inbound Share] Received raw payload:", payload);
+        consume(payload);
+      },
     );
 
     // One-shot pulls of any queued share from native
-    const pullOnce = async () => {
+    const pullOnce = async (label) => {
       try {
         const pending = await BashShareModule?.consumePendingShare?.();
+        console.log(`[Inbound Share] Pull(${label}) pending:`, pending);
         if (pending) {
           console.log("[Inbound Share] Pulled pending:", pending);
           await consume(pending);
           // ✅ Update dedup key to latest
-          //lastKey = JSON.stringify(pending);
+          lastKey = JSON.stringify(pending);
         }
       } catch (e) {
-        console.log("[Inbound Share] Error pulling pending:", e);
+        console.log(`[Inbound Share] Pull(${label}) error:`, e);
       }
     };
 
     // Immediate and timed retries to align with native 2-stage flushes
-    pullOnce(); // immediate
-    const t1 = setTimeout(pullOnce, 2000); // aligns with 2.5s native flush
-    const t2 = setTimeout(pullOnce, 5000); // aligns with 5s secondary flush
-    const t3 = setTimeout(pullOnce, 8000);
+    pullOnce("immediate"); // immediate
+    const t1 = setTimeout(() => pullOnce("2s"), 2000);
+    const t2 = setTimeout(() => pullOnce("5s"), 5000);
+    const t3 = setTimeout(() => pullOnce("8s"), 8000);
 
     // Foreground catch: if app becomes active after share, pull again
-    const onAppState = (state) => {
-      if (state === "active") pullOnce();
-    };
-    const appStateSub = AppState.addEventListener("change", onAppState);
+    // const onAppState = (state) => {
+    //   if (state === "active") pullOnce();
+    // };
+    // const appStateSub = AppState.addEventListener("change", onAppState);
+
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") pullOnce("foreground");
+    });
 
     return () => {
       try {
@@ -244,7 +288,7 @@ async function toBashChatPayload(data) {
     const buffer = await file.arrayBuffer();
     base64 = Buffer.from(buffer).toString("base64");
   } catch (e) {
-    console.log("[Share] Failed to load shared URI:", e);
+    console.log("[Inbound Share] Failed to load shared URI:", e);
   }
 
   // Fallback: return URI-only payload if base64 failed
