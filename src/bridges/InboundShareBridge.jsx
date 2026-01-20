@@ -4,7 +4,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { AppState, DeviceEventEmitter, NativeModules } from "react-native";
+import { AppState, NativeEventEmitter, NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {
   // const addMessage = useGlobal((s) => s.addMessage);
@@ -12,143 +12,154 @@ export default function InboundShareBridge({ onShare }) {
 
   const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
 
+  console.log("[Inbound Share] JS listener mounted");
+
+  let lastKey = null;
+  //let lastSeen = 0;
+
+  const consume = async (raw) => {
+    console.log("[Inbound Share] Event received:", raw, typeof raw);
+
+    // De-duplication key (stringify for stronger comparison)
+    const key =
+      typeof raw === "string"
+        ? raw
+        : Array.isArray(raw)
+          ? JSON.stringify(raw[0])
+          : raw?.uri || JSON.stringify(raw);
+
+    if (key && key === lastKey) {
+      console.log("[Inbound Share] Duplicate event ignored");
+      return;
+    }
+    lastKey = key;
+
+    // If native emitted JSON string, parse and route directly
+    if (typeof raw === "string") {
+      let payload;
+      try {
+        const parsed = JSON.parse(raw);
+
+        if (parsed && typeof parsed === "object" && parsed.kind) {
+          if (parsed.kind === "text") {
+            payload = {
+              kind: "text",
+              text: String(parsed.text || "").trim(),
+            };
+            lastKey = JSON.stringify(payload); // ✅ mark text payload as consumed
+          } else {
+            payload = { kind: "media", payload: parsed.payload || parsed };
+            lastKey = JSON.stringify(payload);
+            lastKey = JSON.stringify(payload);
+            lastKey = JSON.stringify(payload);
+            lastKey = JSON.stringify(payload); // ✅ mark media payload as consumed
+          }
+          console.log("[Inbound Share] Payload(parsed):", parsed);
+        }
+      } catch {
+        // Not JSON → fallback to plain text
+        payload = { kind: "text", text: raw.trim() };
+        lastKey = JSON.stringify(payload);
+        lastKey = JSON.stringify(payload);
+        lastKey = JSON.stringify(payload);
+        lastKey = JSON.stringify(payload); // ✅ mark fallback text as consumed
+        console.log("[Inbound Share] Payload(fallback-text):", payload);
+      }
+
+      if (typeof onShare === "function") {
+        onShare(payload);
+      } else {
+        if (typeof onShare === "function") {
+          onShare(payload);
+        } else {
+          if (typeof onShare === "function") {
+            onShare(payload);
+          } else {
+            setInboundShare(payload);
+          }
+        }
+      }
+
+      return;
+    }
+
+    // Array (SEND_MULTIPLE) → normalize first, or map if needed
+    if (Array.isArray(raw)) {
+      const first = raw[0];
+      try {
+        const normalized = await toBashChatPayload(first);
+        setInboundShare({ kind: "media", payload: normalized });
+        console.log("[Inbound Share] Payload(array-first):", normalized);
+        lastKey = JSON.stringify(normalized); // ✅ mark array payload as consumed
+      } catch (e) {
+        console.log("[Inbound Share] Error building payload from array:", e);
+      }
+      return;
+    }
+
+    // Wrapped nativeEvent
+    if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
+      const payload = { kind: "text", text: raw.nativeEvent.trim() };
+      // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+
+      if (typeof onShare === "function") {
+        onShare(payload);
+      } else {
+        if (typeof onShare === "function") {
+          onShare(payload);
+        } else {
+          if (typeof onShare === "function") {
+            onShare(payload);
+          } else {
+            if (typeof onShare === "function") {
+              onShare(payload);
+            } else {
+              setInboundShare(payload);
+            }
+          }
+        }
+      }
+
+      console.log("[Inbound Share] Payload(nativeEvent):", payload);
+      lastKey = JSON.stringify(payload); // ✅ mark nativeEvent payload as consumed
+      return;
+    }
+
+    // Single item → normalize
+    if (!raw) return;
+    try {
+      const normalized = await toBashChatPayload(raw);
+      setInboundShare({ kind: "media", payload: normalized });
+      console.log("[Inbound Share] Payload:", normalized);
+      lastKey = JSON.stringify(normalized); // ✅ mark media payload as consumed
+    } catch (e) {
+      console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
+    }
+  };
+
+  // const subDevice = DeviceEventEmitter.addListener(
+  //   "onShareReceived",
+  //   consume,
+  // );
+
+  // ✅ Use NativeEventEmitter bound to BashShareModule
+  // const eventEmitter = new NativeEventEmitter(BashShareModule);
+  // const subDevice = eventEmitter.addListener("onShareReceived", consume);
+
   useEffect(() => {
     console.log("[Inbound Share] JS listener mounted");
 
-    let lastKey = null;
-
-    const consume = async (raw) => {
-      console.log("[Inbound Share] Event received:", raw, typeof raw);
-
-      // De-duplication key (stringify for stronger comparison)
-      const key =
-        typeof raw === "string"
-          ? raw
-          : Array.isArray(raw)
-            ? JSON.stringify(raw[0])
-            : raw?.uri || JSON.stringify(raw);
-
-      if (key && key === lastKey) {
-        console.log("[Inbound Share] Duplicate event ignored");
-        return;
-      }
-
-      // // …process payload…
-      // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-      // lastKey = key; // mark consumed using the same key used for comparison
-
-      // If native emitted JSON string, parse and route directly
-      if (typeof raw === "string") {
-        let payload;
-        try {
-          const parsed = JSON.parse(raw);
-          // if (parsed && typeof parsed === "object" && parsed.kind) {
-          //   // ✅ Drop stale payload if a newer one is already queued
-          //   const rawKey = JSON.stringify(parsed);
-          //   if (lastKey && lastKey !== rawKey) {
-          //     console.log("[Inbound Share] Dropping stale payload:", parsed);
-          //     return;
-          //   }
-          //   lastKey = rawKey;
-
-          //   if (parsed.kind === "text") {
-          //     payload = {
-          //       kind: "text",
-          //       text: String(parsed.text || "").trim(),
-          //     };
-          //   } else {
-          //     payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);
-          //   }
-          //   console.log("[Inbound Share] Payload(parsed):", parsed);
-          // }
-          if (parsed && typeof parsed === "object" && parsed.kind) {
-            if (parsed.kind === "text") {
-              payload = {
-                kind: "text",
-                text: String(parsed.text || "").trim(),
-              };
-              lastKey = JSON.stringify(payload); // ✅ mark text payload as consumed
-            } else {
-              payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);
-              lastKey = JSON.stringify(payload); // ✅ mark media payload as consumed
-            }
-            console.log("[Inbound Share] Payload(parsed):", parsed);
-          }
-        } catch {
-          // Not JSON → fallback to plain text
-          payload = { kind: "text", text: raw.trim() }; lastKey = JSON.stringify(payload);
-          lastKey = JSON.stringify(payload); // ✅ mark fallback text as consumed
-          console.log("[Inbound Share] Payload(fallback-text):", payload);
-        }
-        // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-
-        if (typeof onShare === "function") {
-          onShare(payload);
-        } else {
-          if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-        }
-
-        return;
-      }
-
-      // Array (SEND_MULTIPLE) → normalize first, or map if needed
-      if (Array.isArray(raw)) {
-        const first = raw[0];
-        try {
-          const normalized = await toBashChatPayload(first);
-          setInboundShare({ kind: "media", payload: normalized });
-          console.log("[Inbound Share] Payload(array-first):", normalized);
-          lastKey = JSON.stringify(normalized); // ✅ mark array payload as consumed
-        } catch (e) {
-          console.log("[Inbound Share] Error building payload from array:", e);
-        }
-        return;
-      }
-
-      // Wrapped nativeEvent
-      if (
-        raw &&
-        typeof raw === "object" &&
-        typeof raw.nativeEvent === "string"
-      ) {
-        const payload = { kind: "text", text: raw.nativeEvent.trim() };
-        // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-
-        if (typeof onShare === "function") {
-          onShare(payload);
-        } else {
-          if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-        }
-
-        console.log("[Inbound Share] Payload(nativeEvent):", payload);
-        lastKey = JSON.stringify(payload); // ✅ mark nativeEvent payload as consumed
-        return;
-      }
-
-      // Single item → normalize
-      if (!raw) return;
-      try {
-        const normalized = await toBashChatPayload(raw);
-        setInboundShare({ kind: "media", payload: normalized });
-        console.log("[Inbound Share] Payload:", normalized);
-        lastKey = JSON.stringify(normalized); // ✅ mark media payload as consumed
-      } catch (e) {
-        console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
-      }
-    };
-
-    // const subDevice = DeviceEventEmitter.addListener(
-    //   "onShareReceived",
-    //   consume,
-    // );
-
-    const subDevice = DeviceEventEmitter.addListener(
-      "onShareReceived",
-      (payload) => {
-        console.log(">>> [Inbound Share] Received raw payload:", payload);
-        consume(payload);
-      },
+    const emitter = new NativeEventEmitter(NativeModules.BashShareModule);
+    console.log(
+      "[Inbound Share] Binding NativeEventEmitter to BashShareModule",
     );
+
+    const subModule = emitter.addListener("onShareReceived", async (raw) => {
+      console.log("[Inbound Share] Event received:", raw, typeof raw);
+      await consume(raw); // <-- your existing consume() function
+    });
+
+    console.log("[Inbound Share] Listener subscribed to onShareReceived");
 
     // One-shot pulls of any queued share from native
     const pullOnce = async (label) => {
@@ -172,19 +183,13 @@ export default function InboundShareBridge({ onShare }) {
     const t2 = setTimeout(() => pullOnce("5s"), 5000);
     const t3 = setTimeout(() => pullOnce("8s"), 8000);
 
-    // Foreground catch: if app becomes active after share, pull again
-    // const onAppState = (state) => {
-    //   if (state === "active") pullOnce();
-    // };
-    // const appStateSub = AppState.addEventListener("change", onAppState);
-
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") pullOnce("foreground");
     });
 
     return () => {
       try {
-        subDevice.remove();
+        subModule.remove();
       } catch {}
       clearTimeout(t1);
       clearTimeout(t2);

@@ -8,7 +8,7 @@ import { useFonts } from "expo-font";
 import { Provider as PaperProvider } from "react-native-paper";
 import { MenuProvider } from "react-native-popup-menu";
 
-import InboundShareBridge from "@/src/bridges/InboundShareBridge";
+import InboundShareBridge from "../src/bridges/InboundShareBridge";
 import "@/src/core/fontawesome";
 import useGlobal from "@/src/core/global";
 import { ColorScheme, theme } from "@/src/core/theme";
@@ -74,6 +74,7 @@ export default function RootLayout() {
 
   return (
     <>
+      {console.log("[RootLayout] Rendering InboundShareBridge")}
       <InboundShareBridge onShare={handleInboundShare} />
       {(!initialized || !fontsLoaded) ? null : (
         <MenuProvider>
