@@ -12,6 +12,7 @@ export default function InboundShareBridge({ onShare }) {
 
   const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
 
+  console.log("[Inbound Share] BashShareModule reference:", BashShareModule);
   console.log("[Inbound Share] JS listener mounted");
 
   let lastKey = null;
@@ -28,11 +29,8 @@ export default function InboundShareBridge({ onShare }) {
           ? JSON.stringify(raw[0])
           : raw?.uri || JSON.stringify(raw);
 
-    if (key && key === lastKey) {
-      console.log("[Inbound Share] Duplicate event ignored");
-      return;
-    }
-    lastKey = key;
+    if (key && key === lastKey) { console.log("[Inbound Share] Duplicate event ignored"); return; }
+lastKey = key;
 
     // If native emitted JSON string, parse and route directly
     if (typeof raw === "string") {
@@ -48,38 +46,17 @@ export default function InboundShareBridge({ onShare }) {
             };
             lastKey = JSON.stringify(payload); // ✅ mark text payload as consumed
           } else {
-            payload = { kind: "media", payload: parsed.payload || parsed };
-            lastKey = JSON.stringify(payload);
-            lastKey = JSON.stringify(payload);
-            lastKey = JSON.stringify(payload);
-            lastKey = JSON.stringify(payload); // ✅ mark media payload as consumed
+            payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);// ✅ mark media payload as consumed
           }
           console.log("[Inbound Share] Payload(parsed):", parsed);
         }
       } catch {
         // Not JSON → fallback to plain text
-        payload = { kind: "text", text: raw.trim() };
-        lastKey = JSON.stringify(payload);
-        lastKey = JSON.stringify(payload);
-        lastKey = JSON.stringify(payload);
-        lastKey = JSON.stringify(payload); // ✅ mark fallback text as consumed
+        payload = { kind: "text", text: raw.trim() }; lastKey = JSON.stringify(payload);// ✅ mark fallback text as consumed
         console.log("[Inbound Share] Payload(fallback-text):", payload);
       }
 
-      if (typeof onShare === "function") {
-        onShare(payload);
-      } else {
-        if (typeof onShare === "function") {
-          onShare(payload);
-        } else {
-          if (typeof onShare === "function") {
-            onShare(payload);
-          } else {
-            setInboundShare(payload);
-          }
-        }
-      }
-
+      if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); } }
       return;
     }
 
@@ -100,28 +77,9 @@ export default function InboundShareBridge({ onShare }) {
     // Wrapped nativeEvent
     if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
       const payload = { kind: "text", text: raw.nativeEvent.trim() };
-      // if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-
-      if (typeof onShare === "function") {
-        onShare(payload);
-      } else {
-        if (typeof onShare === "function") {
-          onShare(payload);
-        } else {
-          if (typeof onShare === "function") {
-            onShare(payload);
-          } else {
-            if (typeof onShare === "function") {
-              onShare(payload);
-            } else {
-              setInboundShare(payload);
-            }
-          }
-        }
-      }
-
+      if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); } }
       console.log("[Inbound Share] Payload(nativeEvent):", payload);
-      lastKey = JSON.stringify(payload); // ✅ mark nativeEvent payload as consumed
+      lastKey = JSON.stringify(payload);
       return;
     }
 
@@ -137,15 +95,6 @@ export default function InboundShareBridge({ onShare }) {
     }
   };
 
-  // const subDevice = DeviceEventEmitter.addListener(
-  //   "onShareReceived",
-  //   consume,
-  // );
-
-  // ✅ Use NativeEventEmitter bound to BashShareModule
-  // const eventEmitter = new NativeEventEmitter(BashShareModule);
-  // const subDevice = eventEmitter.addListener("onShareReceived", consume);
-
   useEffect(() => {
     console.log("[Inbound Share] JS listener mounted");
 
@@ -155,11 +104,12 @@ export default function InboundShareBridge({ onShare }) {
     );
 
     const subModule = emitter.addListener("onShareReceived", async (raw) => {
+      console.log("[Inbound Share] Listener fired with raw:", raw);
       console.log("[Inbound Share] Event received:", raw, typeof raw);
       await consume(raw); // <-- your existing consume() function
     });
 
-    console.log("[Inbound Share] Listener subscribed to onShareReceived");
+    console.log("[Inbound Share] Listener subscribed to onShareReceived]");
 
     // One-shot pulls of any queued share from native
     const pullOnce = async (label) => {
@@ -331,3 +281,4 @@ async function toBashChatPayload(data) {
 
   return { text: uri };
 }
+

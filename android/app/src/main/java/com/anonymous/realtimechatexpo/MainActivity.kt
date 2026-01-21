@@ -204,8 +204,14 @@ class MainActivity : ReactActivity() {
     val type = intent.type ?: ""
     android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
 
-    // Only handle SEND actions here
-    if (Intent.ACTION_SEND != action) {
+    // // Only handle SEND actions here
+    // if (Intent.ACTION_SEND != action) {
+    //     android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+    //     return
+    // }
+    
+    // Handle SEND (and keep room for SEND_MULTIPLE later)
+    if (action != Intent.ACTION_SEND) {
         android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
         return
     }
@@ -263,7 +269,8 @@ class MainActivity : ReactActivity() {
     if (type.startsWith("text/")) {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
-          val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+          // val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+          val cleaned = normalizeText(sharedText ?: "")
           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
           android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
           emitJson(json)
@@ -273,7 +280,8 @@ class MainActivity : ReactActivity() {
       val clip = intent.clipData
       val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
       if (!clipText.isNullOrEmpty()) {
-          val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+          // val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+          val cleaned = normalizeText(clipText?.toString() ?: "")
           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
           android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
           emitJson(json)

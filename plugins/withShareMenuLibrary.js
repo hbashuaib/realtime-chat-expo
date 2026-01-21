@@ -417,8 +417,14 @@ import com.anonymous.realtimechatexpo.BuildConfig
     val type = intent.type ?: ""
     android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
 
-    // Only handle SEND actions here
-    if (Intent.ACTION_SEND != action) {
+    // // Only handle SEND actions here
+    // if (Intent.ACTION_SEND != action) {
+    //     android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
+    //     return
+    // }
+    
+    // Handle SEND (and keep room for SEND_MULTIPLE later)
+    if (action != Intent.ACTION_SEND) {
         android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
         return
     }
@@ -476,7 +482,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
     if (type.startsWith("text/")) {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
-          val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+          // val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+          val cleaned = normalizeText(sharedText ?: "")
           val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
           android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
           emitJson(json)
@@ -486,7 +493,8 @@ import com.anonymous.realtimechatexpo.BuildConfig
       val clip = intent.clipData
       val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
       if (!clipText.isNullOrEmpty()) {
-          val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+          // val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+          val cleaned = normalizeText(clipText?.toString() ?: "")
           val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
           android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
           emitJson(json)
@@ -690,7 +698,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun consumePendingShare(promise: Promise) {
     try {
-      val v = BashShareQueue.peek()
+      val v = BashShareQueue.consume()
       promise.resolve(v)
     } catch (e: Exception) {
       promise.reject("ERR_CONSUME_PENDING", e)
@@ -975,6 +983,7 @@ object BashShareQueue {
   ]);
 }
 
+// Improved InboundShareBridge.jsx patches with string branch fix
 function withInboundShareBridgePatches(config) {
   return withDangerousMod(config, [
     "android",
@@ -989,7 +998,7 @@ function withInboundShareBridgePatches(config) {
 
       let js = fs.readFileSync(jsPath, "utf8");
 
-      // Patch payload handling to set lastKey
+      // --- Patch payload handling to set lastKey ---
       js = js.replace(
         /payload\s*=\s*\{\s*kind:\s*"text",\s*text:\s*String\(parsed\.text\s*\|\|\s*""\)\.trim\(\)\s*\};/g,
         'payload = { kind: "text", text: String(parsed.text || "").trim() }; lastKey = JSON.stringify(payload);',
@@ -1003,24 +1012,46 @@ function withInboundShareBridgePatches(config) {
         'payload = { kind: "text", text: raw.trim() }; lastKey = JSON.stringify(payload);',
       );
 
-      // Normalize onShare calls
+      // --- 1. Remove commented duplicates ---
       js = js.replace(
-        /setInboundShare\(payload\);/g,
-        'if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }',
+        /\/\/\s*if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);/g,
+        "",
       );
+
+      // --- 2. Normalize ANY onShare routing block (stop before the closing brace) ---
       js = js.replace(
-        /if \(typeof onShare === "function"\) \{ onShare\(payload\); \} else \{ if \(typeof onShare === "function"\) \{ onShare\(payload\); \} else \{ setInboundShare\(payload\); \} \}/g,
+        /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);/g,
         'if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }',
       );
 
-      // Simple duplicate check
+      // --- 3. Fix the string branch (remove stray brace before return) ---
       js = js.replace(
-        /if \(key && key === lastKey\) \{[\s\S]*?lastKey = key;/,
+        /(if\s*\(\s*typeof\s+raw\s*===\s*"string"\s*\)\s*\{[\s\S]*?)(if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*)\}\s*return\s*;/,
+        '$1if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }\nreturn;',
+      );
+
+      // --- 4. Fix the nativeEvent branch (remove stray brace before console.log) ---
+      js = js.replace(
+        /(if\s*\(\s*raw\s*&&\s*typeof\s*raw\s*===\s*"object"\s*&&\s*typeof\s*raw\.nativeEvent\s*===\s*"string"\s*\)\s*\{[\s\S]*?setInboundShare\(payload\);\s*)\}\s*console\.log/,
+        "$1console.log",
+      );
+
+      // --- Dedup check: only one assignment ---
+      js = js.replace(
+        /if \(key && key === lastKey\)[\s\S]*?lastKey = key;/,
         'if (key && key === lastKey) { console.log("[Inbound Share] Duplicate event ignored"); return; }\nlastKey = key;',
       );
 
+      // --- Remove repeated lastKey assignments ---
+      js = js.replace(
+        /lastKey\s*=\s*JSON\.stringify\(payload\);\s*(lastKey\s*=\s*JSON\.stringify\(payload\);\s*)+/g,
+        "lastKey = JSON.stringify(payload);",
+      );
+
       fs.writeFileSync(jsPath, js);
-      console.log("✅ Patched InboundShareBridge.jsx (dedup + onShare)");
+      console.log(
+        "✅ Patched InboundShareBridge.jsx (dedup + onShare + string branch fix)",
+      );
       return cfg;
     },
   ]);

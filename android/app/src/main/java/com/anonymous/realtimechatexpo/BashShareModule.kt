@@ -24,7 +24,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun consumePendingShare(promise: Promise) {
     try {
-      val v = BashShareQueue.peek()
+      val v = BashShareQueue.consume()
       promise.resolve(v)
     } catch (e: Exception) {
       promise.reject("ERR_CONSUME_PENDING", e)

@@ -450,3 +450,9 @@ kill-metro:
 #     </trust-anchors>
 #   </domain-config>
 # </network-security-config>
+
+# - Run a linter/formatter locally
+# Add ESLint + Prettier to your project. They’ll catch mismatched braces or duplicated lines instantly, before you rebuild.
+
+# npm install --save-dev eslint prettier
+# npx eslint src/bridges/InboundShareBridge.jsx
