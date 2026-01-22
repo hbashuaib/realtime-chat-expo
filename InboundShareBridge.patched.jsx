@@ -4,7 +4,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { AppState, NativeEventEmitter, NativeModules, DeviceEventEmitter, InteractionManager } from "react-native";
+import { AppState, NativeEventEmitter, NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {
   // const addMessage = useGlobal((s) => s.addMessage);
@@ -12,9 +12,8 @@ export default function InboundShareBridge({ onShare }) {
 
   const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
 
-  console.log("[Inbound Share] Bridge component rendered");
   console.log("[Inbound Share] BashShareModule reference:", BashShareModule);
-  console.log("[Inbound Share] JS listener mounted - onShare prop:", typeof onShare);
+  console.log("[Inbound Share] JS listener mounted");
 
   let lastKey = null;
   //let lastSeen = 0;
@@ -30,7 +29,7 @@ export default function InboundShareBridge({ onShare }) {
           ? JSON.stringify(raw[0])
           : raw?.uri || JSON.stringify(raw);
 
-    //if (key && key === lastKey) { console.log("[Inbound Share] Duplicate event ignored"); return; }
+    if (key && key === lastKey) { console.log("[Inbound Share] Duplicate event ignored"); return; }
 lastKey = key;
 
     // If native emitted JSON string, parse and route directly
@@ -57,7 +56,7 @@ lastKey = key;
         console.log("[Inbound Share] Payload(fallback-text):", payload);
       }
 
-      /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
+      /*__ONSHARE_NORMALIZED__*/ if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
 return;
     }
 
@@ -104,73 +103,27 @@ return;
     console.log("[Inbound Share] JS listener mounted");
 
     const emitter = new NativeEventEmitter(NativeModules.BashShareModule);
-    // console.log("[Inbound Share] BashShareModule keys:", Object.keys(NativeModules.BashShareModule || {}));
-    // console.log("[Inbound Share] Binding NativeEventEmitter to BashShareModule");
+    console.log(
+      "[Inbound Share] Binding NativeEventEmitter to BashShareModule",
+    );
 
     const subModule = emitter.addListener("onShareReceived", async (raw) => {
-      console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);
+      console.log("[Inbound Share] Listener fired with raw:", raw);
+      console.log("[Inbound Share] Event received:", raw, typeof raw);
       await consume(raw); // <-- your existing consume() function
     });
 
-    const subModuleRaw = emitter.addListener("onShareReceived", (raw) => {
-      console.log("[Inbound Share] RAW NativeEventEmitter event:", raw);
-    });
-
-    console.log("[Inbound Share] Listener subscribed to onShareReceived via NativeEventEmitter");
-
-    // // --- FIX: Add DeviceEventEmitter fallback ---
-    // const subDevice = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
-    //   console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw);
-    //   await consume(raw);
-    // });
-
-    // // --- DEBUG: raw listener bypassing consume/dedup ---
-    // const subDeviceRaw = DeviceEventEmitter.addListener("onShareReceived", (raw) => {
-    //   console.log("[Inbound Share] RAW DeviceEventEmitter event:", raw);
-    // });
-
-    // console.log("[Inbound Share] Listener subscribed to onShareReceived]");
-
-    // // --- Listen for native events emitted via RCTDeviceEventEmitter ---
-    // const subDevice = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
-    //   console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw);
-    //   await consume(raw);
-    // });
-
-    // // --- DEBUG: raw listener bypassing consume/dedup ---
-    // const subDeviceRaw = DeviceEventEmitter.addListener("onShareReceived", (raw) => {
-    //   console.log("[Inbound Share] RAW DeviceEventEmitter event:", raw);
-    // });
-
-    // console.log("[Inbound Share] Listener subscribed to onShareReceived");
+    console.log("[Inbound Share] Listener subscribed to onShareReceived]");
 
     // One-shot pulls of any queued share from native
-    // const pullOnce = async (label) => {
-    //   try {
-    //     const pending = await BashShareModule?.consumePendingShare?.();
-    //     console.log(`[Inbound Share] Pull(${label}) pending:`, pending);
-    //     if (pending) {
-    //       console.log("[Inbound Share] Pulled pending:", pending);
-    //       await consume(pending);
-    //       // ✅ Update dedup key to latest
-    //       lastKey = JSON.stringify(pending);
-    //     }
-    //   } catch (e) {
-    //     console.log(`[Inbound Share] Pull(${label}) error:`, e);
-    //   }
-    // };
-
     const pullOnce = async (label) => {
       try {
-        if (!BashShareModule || typeof BashShareModule.consumePendingShare !== "function") {
-          console.log("[Inbound Share] consumePendingShare not available on BashShareModule");
-          return;
-        }
-        const pending = await BashShareModule.consumePendingShare();
+        const pending = await BashShareModule?.consumePendingShare?.();
         console.log(`[Inbound Share] Pull(${label}) pending:`, pending);
         if (pending) {
           console.log("[Inbound Share] Pulled pending:", pending);
           await consume(pending);
+          // ✅ Update dedup key to latest
           lastKey = JSON.stringify(pending);
         }
       } catch (e) {
@@ -178,26 +131,8 @@ return;
       }
     };
 
-    // Call once JS bridge is fully ready
-    InteractionManager.runAfterInteractions(() => {
-      pullOnce("initial");
-    });
-
-
-    // // Call immediately on mount
-    // pullOnce("immediate");
-
-    // // Immediate and timed retries to align with native 2-stage flushes
-    // pullOnce("immediate"); // immediate
-    // const t1 = setTimeout(() => pullOnce("2s"), 2000);
-    // const t2 = setTimeout(() => pullOnce("5s"), 5000);
-    // const t3 = setTimeout(() => pullOnce("8s"), 8000);
-
-    // const appStateSub = AppState.addEventListener("change", (state) => {
-    //   if (state === "active") pullOnce("foreground");
-    // });    
-
-    // Timed retries to align with native 2-stage flushes
+    // Immediate and timed retries to align with native 2-stage flushes
+    pullOnce("immediate"); // immediate
     const t1 = setTimeout(() => pullOnce("2s"), 2000);
     const t2 = setTimeout(() => pullOnce("5s"), 5000);
     const t3 = setTimeout(() => pullOnce("8s"), 8000);
@@ -207,14 +142,14 @@ return;
     });
 
     return () => {
-      try { subModule.remove(); } catch {}
-      try { subModuleRaw.remove(); } catch {}
+      try {
+        subModule.remove();
+      } catch {}
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
       appStateSub?.remove?.();
     };
-
   }, [setInboundShare, onShare]);
 
   return null;

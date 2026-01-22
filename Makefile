@@ -160,6 +160,8 @@ kill-metro:
 
 # adb logcat -s BashChatTest ReactNativeJS ReactNative
 
+# adb logcat -s BashChatTest ReactNative
+
 
 # npx expo run:android --variant release
 # npx expo start

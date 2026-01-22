@@ -416,18 +416,12 @@ import com.anonymous.realtimechatexpo.BuildConfig
     val action = intent.action
     val type = intent.type ?: ""
     android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
-
-    // // Only handle SEND actions here
-    // if (Intent.ACTION_SEND != action) {
+    
+    // // Handle SEND (and keep room for SEND_MULTIPLE later)
+    // if (action != Intent.ACTION_SEND) {
     //     android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
     //     return
-    // }
-    
-    // Handle SEND (and keep room for SEND_MULTIPLE later)
-    if (action != Intent.ACTION_SEND) {
-        android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
-        return
-    }
+    // }    
     
     // Helper to escape JSON strings
     fun normalizeText(raw: String): String {
@@ -478,30 +472,65 @@ import com.anonymous.realtimechatexpo.BuildConfig
       }
     }
 
-    // TEXT: strip URLs
+    // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---
+    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+    if (!sharedText.isNullOrEmpty()) {
+        val cleaned = normalizeText(sharedText ?: "")
+        val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+        android.util.Log.e("BashChatTest", ">>> Built text JSON (type-agnostic): $json")
+        emitJson(json)
+        android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
+        return
+    }
+
+    // --- FIX #2: Relax action gating to allow SEND_MULTIPLE and VIEW ---
+    val isSend = action == Intent.ACTION_SEND
+    val isSendMultiple = action == Intent.ACTION_SEND_MULTIPLE
+    val isView = action == Intent.ACTION_VIEW
+
+    if (!isSend && !isSendMultiple && !isView) {
+        android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
+        return
+    }
+
+    // // TEXT: strip URLs
+    // if (type.startsWith("text/")) {
+    //   val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+    //   if (!sharedText.isNullOrEmpty()) {
+    //       // val cleaned = normalizeText(stripUrls(sharedText ?: ""))
+    //       val cleaned = normalizeText(sharedText ?: "")
+    //       val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+    //       android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
+    //       emitJson(json)
+    //       android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
+    //       return
+    //   }
+    //   val clip = intent.clipData
+    //   val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+    //   if (!clipText.isNullOrEmpty()) {
+    //       // val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
+    //       val cleaned = normalizeText(clipText?.toString() ?: "")
+    //       val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+    //       android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
+    //       emitJson(json)
+    //       android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
+    //       return
+    //   }
+    //   return
+    // }
+
+    // TEXT via type (secondary path for clipData text)
     if (type.startsWith("text/")) {
-      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-      if (!sharedText.isNullOrEmpty()) {
-          // val cleaned = normalizeText(stripUrls(sharedText ?: ""))
-          val cleaned = normalizeText(sharedText ?: "")
-          val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-          android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
-          emitJson(json)
-          android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
-          return
-      }
-      val clip = intent.clipData
-      val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-      if (!clipText.isNullOrEmpty()) {
-          // val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
-          val cleaned = normalizeText(clipText?.toString() ?: "")
-          val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-          android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
-          emitJson(json)
-          android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
-          return
-      }
-      return
+        val clip = intent.clipData
+        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+        if (!clipText.isNullOrEmpty()) {
+            val cleaned = normalizeText(clipText?.toString() ?: "")
+            val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+            android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
+            emitJson(json)
+            android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
+            return
+        }
     }
 
     // STREAMS: image/audio/video/pdf
@@ -983,7 +1012,7 @@ object BashShareQueue {
   ]);
 }
 
-// Improved InboundShareBridge.jsx patches with string branch fix
+// Improved InboundShareBridge.jsx patches with string branch + brace fixes
 function withInboundShareBridgePatches(config) {
   return withDangerousMod(config, [
     "android",
@@ -997,6 +1026,13 @@ function withInboundShareBridgePatches(config) {
       if (!fs.existsSync(jsPath)) return cfg;
 
       let js = fs.readFileSync(jsPath, "utf8");
+
+      // --- 0. Idempotency markers: skip if already normalized ---
+      if (js.includes("/*__ONSHARE_NORMALIZED__*/")) {
+        console.log(
+          "ℹ️ InboundShareBridge already normalized — skipping Step 2.",
+        );
+      }
 
       // --- Patch payload handling to set lastKey ---
       js = js.replace(
@@ -1018,10 +1054,10 @@ function withInboundShareBridgePatches(config) {
         "",
       );
 
-      // --- 2. Normalize ANY onShare routing block (stop before the closing brace) ---
+      // --- 2. Normalize ANY onShare routing block (consume closing brace too) ---
       js = js.replace(
-        /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);/g,
-        'if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }',
+        /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*\}/g,
+        '/*__ONSHARE_NORMALIZED__*/ if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }',
       );
 
       // --- 3. Fix the string branch (remove stray brace before return) ---
@@ -1030,10 +1066,20 @@ function withInboundShareBridgePatches(config) {
         '$1if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }\nreturn;',
       );
 
-      // --- 4. Fix the nativeEvent branch (remove stray brace before console.log) ---
+      // --- 4. Force replace the nativeEvent branch with correct structure ---
       js = js.replace(
-        /(if\s*\(\s*raw\s*&&\s*typeof\s*raw\s*===\s*"object"\s*&&\s*typeof\s*raw\.nativeEvent\s*===\s*"string"\s*\)\s*\{[\s\S]*?setInboundShare\(payload\);\s*)\}\s*console\.log/,
-        "$1console.log",
+        /if\s*\(raw\s*&&\s*typeof\s*raw\s*===\s*"object"\s*&&\s*typeof\s*raw\.nativeEvent\s*===\s*"string"\s*\)\s*\{[\s\S]*?return;\s*\}/,
+        `if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
+  const payload = { kind: "text", text: raw.nativeEvent.trim() };
+  if (typeof onShare === "function") {
+    onShare(payload);
+  } else {
+    setInboundShare(payload);
+  }
+  console.log("[Inbound Share] Payload(nativeEvent):", payload);
+  lastKey = JSON.stringify(payload);
+  return;
+}`,
       );
 
       // --- Dedup check: only one assignment ---
@@ -1050,7 +1096,7 @@ function withInboundShareBridgePatches(config) {
 
       fs.writeFileSync(jsPath, js);
       console.log(
-        "✅ Patched InboundShareBridge.jsx (dedup + onShare + string branch fix)",
+        "✅ Patched InboundShareBridge.jsx (dedup + onShare + string/nativeEvent brace fixes)",
       );
       return cfg;
     },
