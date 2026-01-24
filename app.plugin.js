@@ -63,13 +63,13 @@ function ensureSourceSets(content) {
     `android {
     sourceSets {
         main {
-            java.srcDirs = ['src/main/java']
+            java.srcDirs = ['src/main/java', 'src/main/kotlin']
         }
         debug {
-            java.srcDirs = ['src/main/java']
+            java.srcDirs = ['src/main/java', 'src/main/kotlin']
         }
         release {
-            java.srcDirs = ['src/main/java']
+            java.srcDirs = ['src/main/java', 'src/main/kotlin']
         }
     }
 
@@ -77,6 +77,23 @@ function ensureSourceSets(content) {
   );
 }
 
+// NEW helper to inject Kotlin plugin at top of app/build.gradle
+function ensureKotlinPlugin(content) {
+  if (content.includes('org.jetbrains.kotlin.android')) return content;
+  return content.replace(
+    /apply plugin: "com.android.application"/,
+    `apply plugin: "com.android.application"\napply plugin: "org.jetbrains.kotlin.android"`
+  );
+}
+
+// NEW helper to inject Kotlin stdlib dependency
+function ensureKotlinStdlibDependency(content) {
+  if (content.includes('org.jetbrains.kotlin:kotlin-stdlib')) return content;
+  return content.replace(
+    /implementation\("com.facebook.react:react-android"\)/,
+    `implementation("com.facebook.react:react-android")\n    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"`
+  );
+}
 
 function patchAppBuildGradle(content) {
   let updated = content;
@@ -93,8 +110,14 @@ function patchAppBuildGradle(content) {
   // 4) Ensure AppCompat is present
   updated = ensureAppCompatDependency(updated);
 
-  // 5) Ensure sourceSets block exists
+  // 5) Ensure sourceSets block is present
   updated = ensureSourceSets(updated);
+  
+  // 6) Ensure Kotlin plugin and stdlib dependency
+  updated = ensureKotlinPlugin(updated);
+
+  // 7) Ensure Kotlin stdlib dependency
+  updated = ensureKotlinStdlibDependency(updated);
 
   return updated;
 }

@@ -187,6 +187,7 @@ function withNormalizeMainActivityViewFilters(config) {
         return (
           !actions.includes("android.intent.action.SEND") &&
           !actions.includes("android.intent.action.SEND_MULTIPLE") &&
+          !actions.includes("android.intent.action.SENDTO") && // ✅ new
           !actions.includes("android.intent.action.VIEW")
         );
       });
@@ -680,7 +681,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
   });
 }
 
-// Create BashShareModule.kt and BashSharePackage.kt for native share queueing
+// Create BashShareModule.kt, BashSharePackage.kt, and BashShareQueue.kt for native share queueing
 function withBashShareNativeModule(config) {
   return withDangerousMod(config, [
     "android",
@@ -700,6 +701,7 @@ function withBashShareNativeModule(config) {
 
       const modulePath = path.join(srcDir, "BashShareModule.kt");
       const packagePath = path.join(srcDir, "BashSharePackage.kt");
+      const queuePath = path.join(srcDir, "BashShareQueue.kt");
 
       const moduleCode = `package com.anonymous.realtimechatexpo
 
@@ -710,7 +712,6 @@ import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 
-// Final BashShareQueue with set and peek methods
 @ReactModule(name = "BashShareModule")
 class BashShareModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
@@ -734,7 +735,8 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  // Called from MainActivity to emit to JS
+  // Explicitly expose notifyShareReceived to JS
+  @ReactMethod
   fun notifyShareReceived(json: String) {
     if (reactApplicationContext.hasActiveCatalystInstance()) {
       reactApplicationContext
@@ -743,8 +745,6 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     }
   }
 }
-
-
 `;
 
       const packageCode = `package com.anonymous.realtimechatexpo
@@ -765,9 +765,44 @@ class BashSharePackage : ReactPackage {
 }
 `;
 
+      const queueCode = `package com.anonymous.realtimechatexpo
+
+object BashShareQueue {
+  @Volatile private var pending: String? = null
+
+  @JvmStatic fun setPending(value: String?) {
+    pending = value
+  }
+
+  @JvmStatic fun consume(): String? {
+    val v = pending
+    pending = null
+    return v
+  }
+
+  @JvmStatic fun peek(): String? {
+    return pending
+  }
+}
+`;
+
+      // Always overwrite to ensure files exist after prebuild
       fs.writeFileSync(modulePath, moduleCode);
       fs.writeFileSync(packagePath, packageCode);
-      console.log("✅ Injected BashShareModule.kt and BashSharePackage.kt");
+      fs.writeFileSync(queuePath, queueCode);
+
+      if (
+        fs.existsSync(modulePath) &&
+        fs.existsSync(packagePath) &&
+        fs.existsSync(queuePath)
+      ) {
+        console.log(
+          "✅ Verified BashShareModule.kt, BashSharePackage.kt, BashShareQueue.kt exist",
+        );
+      } else {
+        console.error("❌ Native module files missing after injection");
+      }
+
       return cfg;
     },
   ]);

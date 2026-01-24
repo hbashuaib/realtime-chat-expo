@@ -7,7 +7,6 @@ import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 
-// Final BashShareQueue with set and peek methods
 @ReactModule(name = "BashShareModule")
 class BashShareModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
@@ -31,7 +30,8 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  // Called from MainActivity to emit to JS
+  // Explicitly expose notifyShareReceived to JS
+  @ReactMethod
   fun notifyShareReceived(json: String) {
     if (reactApplicationContext.hasActiveCatalystInstance()) {
       reactApplicationContext
@@ -40,5 +40,3 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     }
   }
 }
-
-

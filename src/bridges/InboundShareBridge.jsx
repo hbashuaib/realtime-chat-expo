@@ -4,17 +4,33 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { AppState, NativeEventEmitter, NativeModules, DeviceEventEmitter, InteractionManager } from "react-native";
+import {
+  AppState,
+  NativeEventEmitter,
+  NativeModules
+} from "react-native";
 
 export default function InboundShareBridge({ onShare }) {
   // const addMessage = useGlobal((s) => s.addMessage);
   const setInboundShare = useGlobal((s) => s.setInboundShare);
 
-  const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
+  // const BashShareModule = NativeModules.BashShareModule; // ✅ correct reference
 
-  console.log("[Inbound Share] Bridge component rendered");
-  console.log("[Inbound Share] BashShareModule reference:", BashShareModule);
-  console.log("[Inbound Share] JS listener mounted - onShare prop:", typeof onShare);
+  // console.log("[Inbound Share] Bridge component rendered");
+  // console.log("[Inbound Share] BashShareModule reference:", BashShareModule);
+  // console.log(
+  //   "[Inbound Share] JS listener mounted - onShare prop:",
+  //   typeof onShare,
+  // );
+
+  // Delay logging until after mount so Catalyst is ready
+  useEffect(() => {
+    const BashShareModule = NativeModules.BashShareModule;
+    console.log("[Inbound Share] Bridge component mounted");
+    console.log("[Inbound Share] BashShareModule full object:", BashShareModule);
+    console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
+    console.log("[Inbound Share] JS listener mounted - onShare prop:", typeof onShare);
+  }, [onShare]);
 
   let lastKey = null;
   //let lastSeen = 0;
@@ -57,8 +73,14 @@ lastKey = key;
         console.log("[Inbound Share] Payload(fallback-text):", payload);
       }
 
-      /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }
-return;
+      /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ if (
+        typeof onShare === "function"
+      ) {
+        onShare(payload);
+      } else {
+        setInboundShare(payload);
+      }
+      return;
     }
 
     // Array (SEND_MULTIPLE) → normalize first, or map if needed
@@ -103,20 +125,19 @@ return;
   useEffect(() => {
     console.log("[Inbound Share] JS listener mounted");
 
+    const BashShareModule = NativeModules.BashShareModule;
     const emitter = new NativeEventEmitter(NativeModules.BashShareModule);
-    // console.log("[Inbound Share] BashShareModule keys:", Object.keys(NativeModules.BashShareModule || {}));
-    // console.log("[Inbound Share] Binding NativeEventEmitter to BashShareModule");
+    
+    console.log("[Inbound Share] Binding NativeEventEmitter to BashShareModule");
 
     const subModule = emitter.addListener("onShareReceived", async (raw) => {
       console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);
-      await consume(raw); // <-- your existing consume() function
+      await consume(raw);
     });
 
-    const subModuleRaw = emitter.addListener("onShareReceived", (raw) => {
-      console.log("[Inbound Share] RAW NativeEventEmitter event:", raw);
-    });
-
-    console.log("[Inbound Share] Listener subscribed to onShareReceived via NativeEventEmitter");
+    console.log(
+      "[Inbound Share] Listener subscribed to onShareReceived via NativeEventEmitter",
+    );
 
     // // --- FIX: Add DeviceEventEmitter fallback ---
     // const subDevice = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
@@ -162,8 +183,13 @@ return;
 
     const pullOnce = async (label) => {
       try {
-        if (!BashShareModule || typeof BashShareModule.consumePendingShare !== "function") {
-          console.log("[Inbound Share] consumePendingShare not available on BashShareModule");
+        if (
+          !BashShareModule ||
+          typeof BashShareModule.consumePendingShare !== "function"
+        ) {
+          console.log(
+            "[Inbound Share] consumePendingShare not available on BashShareModule",
+          );
           return;
         }
         const pending = await BashShareModule.consumePendingShare();
@@ -178,11 +204,21 @@ return;
       }
     };
 
-    // Call once JS bridge is fully ready
-    InteractionManager.runAfterInteractions(() => {
-      pullOnce("initial");
-    });
+    // // Call once JS bridge is fully ready
+    // InteractionManager.runAfterInteractions().then(() => {
+    //   pullOnce("initial");
+    //   setTimeout(() => pullOnce("2s"), 2000);
+    //   setTimeout(() => pullOnce("5s"), 5000);
+    //   setTimeout(() => pullOnce("8s"), 8000);
+    // });
 
+    // Call once JS bridge is fully ready
+    setImmediate(() => {
+      pullOnce("initial");
+      setTimeout(() => pullOnce("2s"), 2000);
+      setTimeout(() => pullOnce("5s"), 5000);
+      setTimeout(() => pullOnce("8s"), 8000);
+    });
 
     // // Call immediately on mount
     // pullOnce("immediate");
@@ -195,7 +231,7 @@ return;
 
     // const appStateSub = AppState.addEventListener("change", (state) => {
     //   if (state === "active") pullOnce("foreground");
-    // });    
+    // });
 
     // Timed retries to align with native 2-stage flushes
     const t1 = setTimeout(() => pullOnce("2s"), 2000);
@@ -207,14 +243,14 @@ return;
     });
 
     return () => {
-      try { subModule.remove(); } catch {}
-      try { subModuleRaw.remove(); } catch {}
+      try {
+        subModule.remove();
+      } catch {}
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
       appStateSub?.remove?.();
     };
-
   }, [setInboundShare, onShare]);
 
   return null;
