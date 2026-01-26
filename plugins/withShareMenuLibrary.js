@@ -1092,35 +1092,48 @@ function withInboundShareBridgePatches(config) {
       // --- 2. Normalize ANY onShare routing block (consume closing brace too) ---
       js = js.replace(
         /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*\}/g,
-        '/*__ONSHARE_NORMALIZED__*/ if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }',
+        `/*__ONSHARE_NORMALIZED__*/ 
+      if (typeof onShare === "function") {
+        console.log("[Inbound Share] Routed payload to onShare:", payload);
+        onShare(payload);
+      } else {
+        console.log("[Inbound Share] Routed payload to global store:", payload);
+        setInboundShare(payload);
+      }`,
       );
 
       // --- 3. Fix the string branch (remove stray brace before return) ---
       js = js.replace(
         /(if\s*\(\s*typeof\s+raw\s*===\s*"string"\s*\)\s*\{[\s\S]*?)(if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*)\}\s*return\s*;/,
-        '$1if (typeof onShare === "function") { onShare(payload); } else { setInboundShare(payload); }\nreturn;',
+        '$1if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }\nreturn;'
       );
 
       // --- 4. Force replace the nativeEvent branch with correct structure ---
       js = js.replace(
         /if\s*\(raw\s*&&\s*typeof\s*raw\s*===\s*"object"\s*&&\s*typeof\s*raw\.nativeEvent\s*===\s*"string"\s*\)\s*\{[\s\S]*?return;\s*\}/,
         `if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
-  const payload = { kind: "text", text: raw.nativeEvent.trim() };
-  if (typeof onShare === "function") {
-    onShare(payload);
-  } else {
-    setInboundShare(payload);
-  }
-  console.log("[Inbound Share] Payload(nativeEvent):", payload);
-  lastKey = JSON.stringify(payload);
-  return;
-}`,
+        const payload = { kind: "text", text: raw.nativeEvent.trim() };
+        if (typeof onShare === "function") {
+          console.log("[Inbound Share] Routed nativeEvent payload to onShare:", payload);
+          onShare(payload);
+        } else {
+          console.log("[Inbound Share] Routed nativeEvent payload to global store:", payload);
+          setInboundShare(payload);
+        }
+        console.log("[Inbound Share] Payload(nativeEvent):", payload);
+        lastKey = JSON.stringify(payload);
+        return;
+      }`,
       );
 
       // --- Dedup check: only one assignment ---
       js = js.replace(
         /if \(key && key === lastKey\)[\s\S]*?lastKey = key;/,
-        'if (key && key === lastKey) { console.log("[Inbound Share] Duplicate event ignored"); return; }\nlastKey = key;',
+        `if (typeof key !== "undefined" && key && key === lastKey) {
+            console.log("[Inbound Share] Duplicate event ignored");
+            return;
+          }
+          lastKey = key;`,
       );
 
       // --- Remove repeated lastKey assignments ---

@@ -167,8 +167,6 @@ kill-metro:
 # npx expo start
 
 
-# 12879
-
 # ./rebuild.ps1
 
 # To check if ShareMenuActivity is in the APK manifest:
