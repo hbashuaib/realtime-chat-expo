@@ -37,3 +37,6 @@ expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
+
+include ':bash-share-module'
+project(':bash-share-module').projectDir = new File(rootProject.projectDir, './bash-share-module/android')

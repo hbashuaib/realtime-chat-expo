@@ -44,6 +44,18 @@ export default function InboundShareBridge({ onShare }) {
       }
 
       /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
       if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }
 return;
     }
@@ -116,14 +128,14 @@ return;
           );
       }
 
-      // ✅ Subscribe once
-      // const emitter = new NativeEventEmitter(BashShareModule);
+      // ✅ Use NativeEventEmitter tied to BashShareModule
+      const emitter = new NativeEventEmitter(BashShareModule);
       
       // Use null instead of BashShareModule to bind globally
       // const emitter = new NativeEventEmitter(null);
       
       // ✅ Use DeviceEventEmitter directly
-      const emitter = DeviceEventEmitter;
+      // const emitter = DeviceEventEmitter;
 
       const subModule = emitter.addListener("onShareReceived", async (raw) => {
         console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);

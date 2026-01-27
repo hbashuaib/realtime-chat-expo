@@ -121,6 +121,8 @@ kill-metro:
 
 # npx expo start --host localhost
 
+# .\nginx.exe
+
 
 
 # adb logcat | findstr BashChatShare

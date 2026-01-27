@@ -725,6 +725,13 @@ class BashShareModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun removeListeners(count: Int) { /* no-op */ }
 
+  // ✅ NEW: trivial test method to confirm bridge works
+  @ReactMethod
+  fun ping(promise: Promise) {
+    promise.resolve("pong from native")
+  }
+
+
   @ReactMethod
   fun consumePendingShare(promise: Promise) {
     try {
@@ -756,7 +763,9 @@ import com.facebook.react.uimanager.ViewManager
 
 class BashSharePackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    return listOf(BashShareModule(reactContext))
+    val modules = mutableListOf<NativeModule>()
+    modules.add(BashShareModule(reactContext))
+    return modules
   }
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
@@ -839,30 +848,20 @@ function withRegisterBashSharePackage(config) {
         );
       }
 
-      // Register package inside getPackages() or packages list
-      // Handle new arch (apply block) and classic lists defensively
-      if (!src.includes("BashSharePackage()")) {
-        // New arch style: PackageList(this).packages.apply { … }
-        src = src.replace(
-          /(PackageList\(this\)\.packages\.apply\s*\{)/,
-          `$1\n      add(BashSharePackage())`,
-        );
-
-        // Classic listOf style
-        src = src.replace(
-          /(packages\s*=\s*listOf\([^\)]*)\)/,
-          `$1,\n            BashSharePackage()\n        )`,
-        );
-
-        // Fallback: return listOf style
-        src = src.replace(
-          /(return\s+listOf\([^\)]*)\)/,
-          `$1,\n            BashSharePackage()\n        )`,
-        );
-      }
+      // Replace getPackages() override with explicit form
+      src = src.replace(
+        /override fun getPackages[^{]*\{[^}]*\}/s,
+        `override fun getPackages(): List<ReactPackage> {
+    val packages = PackageList(this).packages.toMutableList()
+    packages.add(BashSharePackage())
+    return packages
+  }`,
+      );
 
       fs.writeFileSync(appPath, src);
-      console.log("✅ Registered BashSharePackage in MainApplication.kt");
+      console.log(
+        "✅ Injected explicit getPackages override with BashSharePackage",
+      );
       return cfg;
     },
   ]);
@@ -1105,7 +1104,7 @@ function withInboundShareBridgePatches(config) {
       // --- 3. Fix the string branch (remove stray brace before return) ---
       js = js.replace(
         /(if\s*\(\s*typeof\s+raw\s*===\s*"string"\s*\)\s*\{[\s\S]*?)(if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*)\}\s*return\s*;/,
-        '$1if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }\nreturn;'
+        '$1if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }\nreturn;',
       );
 
       // --- 4. Force replace the nativeEvent branch with correct structure ---

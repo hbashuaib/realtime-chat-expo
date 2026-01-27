@@ -167,6 +167,7 @@ android {
 }
 
 dependencies {
+
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
@@ -178,7 +179,9 @@ dependencies {
 
     if (isGifEnabled) {
         // For animated gif support
-        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()
+    implementation project(':bash-share-module')
+}")
     }
 
     if (isWebpEnabled) {

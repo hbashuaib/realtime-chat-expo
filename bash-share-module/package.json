@@ -1,0 +1,21 @@
+{
+  "name": "bash-share-module",
+  "version": "1.0.0",
+  "description": "Custom native module for inbound share handling in BashChat",
+  "main": "index.js",
+  "keywords": [
+    "react-native",
+    "expo",
+    "share",
+    "native-module"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/your-repo.git"
+  },
+  "author": "Hussein",
+  "license": "MIT",
+  "peerDependencies": {
+    "react-native": "*"
+  }
+}
