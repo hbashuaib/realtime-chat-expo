@@ -1,3 +1,4 @@
+// plugins/withBashShareSettings.js
 const { withSettingsGradle } = require('@expo/config-plugins');
 
 module.exports = function withBashShareSettings(config) {

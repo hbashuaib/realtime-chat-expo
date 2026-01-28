@@ -458,3 +458,283 @@ kill-metro:
 
 # npm install --save-dev eslint prettier
 # npx eslint src/bridges/InboundShareBridge.jsx
+
+
+
+
+# // Create BashShareModule.kt, BashSharePackage.kt, and BashShareQueue.kt for native share queueing
+# function withBashShareNativeModule(config) {
+#   return withDangerousMod(config, [
+#     "android",
+#     (cfg) => {
+#       const srcDir = path.join(
+#         cfg.modRequest.projectRoot,
+#         "android",
+#         "app",
+#         "src",
+#         "main",
+#         "java",
+#         "com",
+#         "anonymous",
+#         "realtimechatexpo",
+#       );
+#       fs.mkdirSync(srcDir, { recursive: true });
+
+#       const modulePath = path.join(srcDir, "BashShareModule.kt");
+#       const packagePath = path.join(srcDir, "BashSharePackage.kt");
+#       const queuePath = path.join(srcDir, "BashShareQueue.kt");
+
+#       const moduleCode = `package com.anonymous.realtimechatexpo
+
+# import com.facebook.react.bridge.ReactApplicationContext
+# import com.facebook.react.bridge.ReactContextBaseJavaModule
+# import com.facebook.react.modules.core.DeviceEventManagerModule
+# import com.facebook.react.module.annotations.ReactModule
+# import com.facebook.react.bridge.ReactMethod
+# import com.facebook.react.bridge.Promise
+
+# @ReactModule(name = "BashShareModule")
+# class BashShareModule(reactContext: ReactApplicationContext) :
+#   ReactContextBaseJavaModule(reactContext) {
+
+#   override fun getName(): String = "BashShareModule"
+
+#   // Required for NativeEventEmitter
+#   @ReactMethod
+#   fun addListener(eventName: String) { /* no-op */ }
+
+#   @ReactMethod
+#   fun removeListeners(count: Int) { /* no-op */ }
+
+#   // ✅ NEW: trivial test method to confirm bridge works
+#   @ReactMethod
+#   fun ping(promise: Promise) {
+#     promise.resolve("pong from native")
+#   }
+
+
+#   @ReactMethod
+#   fun consumePendingShare(promise: Promise) {
+#     try {
+#       val v = BashShareQueue.consume()
+#       promise.resolve(v)
+#     } catch (e: Exception) {
+#       promise.reject("ERR_CONSUME_PENDING", e)
+#     }
+#   }
+
+#   // Explicitly expose notifyShareReceived to JS
+#   @ReactMethod
+#   fun notifyShareReceived(json: String) {
+#     if (reactApplicationContext.hasActiveCatalystInstance()) {
+#       reactApplicationContext
+#         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+#         .emit("onShareReceived", json)
+#     }
+#   }
+# }
+# `;
+
+#       const packageCode = `package com.anonymous.realtimechatexpo
+
+# import com.facebook.react.ReactPackage
+# import com.facebook.react.bridge.NativeModule
+# import com.facebook.react.bridge.ReactApplicationContext
+# import com.facebook.react.uimanager.ViewManager
+
+# class BashSharePackage : ReactPackage {
+#   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
+#     val modules = mutableListOf<NativeModule>()
+#     modules.add(BashShareModule(reactContext))
+#     return modules
+#   }
+
+#   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
+#     return emptyList()
+#   }
+# }
+# `;
+
+#       const queueCode = `package com.anonymous.realtimechatexpo
+
+# object BashShareQueue {
+#   @Volatile private var pending: String? = null
+
+#   @JvmStatic fun setPending(value: String?) {
+#     pending = value
+#   }
+
+#   @JvmStatic fun consume(): String? {
+#     val v = pending
+#     pending = null
+#     return v
+#   }
+
+#   @JvmStatic fun peek(): String? {
+#     return pending
+#   }
+# }
+# `;
+
+#       // Always overwrite to ensure files exist after prebuild
+#       fs.writeFileSync(modulePath, moduleCode);
+#       fs.writeFileSync(packagePath, packageCode);
+#       fs.writeFileSync(queuePath, queueCode);
+
+#       if (
+#         fs.existsSync(modulePath) &&
+#         fs.existsSync(packagePath) &&
+#         fs.existsSync(queuePath)
+#       ) {
+#         console.log(
+#           "✅ Verified BashShareModule.kt, BashSharePackage.kt, BashShareQueue.kt exist",
+#         );
+#       } else {
+#         console.error("❌ Native module files missing after injection");
+#       }
+
+#       return cfg;
+#     },
+#   ]);
+# }
+
+# // Register BashSharePackage in MainApplication.kt
+# function withRegisterBashSharePackage(config) {
+#   return withDangerousMod(config, [
+#     "android",
+#     (cfg) => {
+#       const appPath = path.join(
+#         cfg.modRequest.projectRoot,
+#         "android",
+#         "app",
+#         "src",
+#         "main",
+#         "java",
+#         "com",
+#         "anonymous",
+#         "realtimechatexpo",
+#         "MainApplication.kt",
+#       );
+#       if (!fs.existsSync(appPath)) return cfg;
+
+#       let src = fs.readFileSync(appPath, "utf8");
+
+#       // Ensure import
+#       if (
+#         !src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")
+#       ) {
+#         src = src.replace(
+#           /(package[^\n]*\n)/,
+#           `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`,
+#         );
+#       }
+
+#       // Replace getPackages() override with explicit form
+#       src = src.replace(
+#         /override fun getPackages[^{]*\{[^}]*\}/s,
+#         `override fun getPackages(): List<ReactPackage> {
+#     val packages = PackageList(this).packages.toMutableList()
+#     packages.add(BashSharePackage())
+#     return packages
+#   }`,
+#       );
+
+#       fs.writeFileSync(appPath, src);
+#       console.log(
+#         "✅ Injected explicit getPackages override with BashSharePackage",
+#       );
+#       return cfg;
+#     },
+#   ]);
+# }
+
+
+# // Create BashShareQueue.kt for native share queueing
+# function withBashShareQueueFile(config) {
+#   return withDangerousMod(config, [
+#     "android",
+#     (cfg) => {
+#       const srcDir = path.join(
+#         cfg.modRequest.projectRoot,
+#         "android",
+#         "app",
+#         "src",
+#         "main",
+#         "java",
+#         "com",
+#         "anonymous",
+#         "realtimechatexpo",
+#       );
+#       fs.mkdirSync(srcDir, { recursive: true });
+
+#       const queuePath = path.join(srcDir, "BashShareQueue.kt");
+#       const queueCode = `package com.anonymous.realtimechatexpo
+
+# object BashShareQueue {
+#   @Volatile private var pending: String? = null
+
+#   @JvmStatic fun setPending(value: String?) {
+#     pending = value
+#   }
+
+#   @JvmStatic fun consume(): String? {
+#     val v = pending
+#     pending = null
+#     return v
+#   }
+
+#   @JvmStatic fun peek(): String? {
+#     return pending
+#   }
+# }
+# `;
+#       fs.writeFileSync(queuePath, queueCode);
+#       console.log("✅ Injected BashShareQueue.kt");
+#       return cfg;
+#     },
+#   ]);
+# }
+
+
+# function normalizeDefaultConfigBlock(content) {
+#   // Ensure defaultConfig has single numeric min/target sdk lines,
+#   // and remove any rootProject.ext overrides that re-introduce API 29.
+#   return content.replace(/defaultConfig\s*\{([\s\S]*?)\}/m, (match, inner) => {
+#     let block = inner;
+
+#     // Remove any rootProject.ext based lines
+#     block = block.replace(
+#       /^\s*minSdkVersion\s+rootProject\.ext\.minSdkVersion\s*$/gm,
+#       "",
+#     );
+#     block = block.replace(
+#       /^\s*targetSdkVersion\s+rootProject\.ext\.targetSdkVersion\s*$/gm,
+#       "",
+#     );
+
+#     // Normalize any existing min/target lines (numeric or not) to correct values
+#     block = block.replace(
+#       /^\s*minSdkVersion\s+.*$/gm,
+#       "        minSdkVersion 24",
+#     );
+#     block = block.replace(
+#       /^\s*targetSdkVersion\s+.*$/gm,
+#       "        targetSdkVersion 35",
+#     );
+
+#     // If min/target lines are missing, inject them near top of the block
+#     if (!/minSdkVersion\s+24/.test(block)) {
+#       block = `        minSdkVersion 24\n` + block;
+#     }
+#     if (!/targetSdkVersion\s+35/.test(block)) {
+#       block = `        targetSdkVersion 35\n` + block;
+#     }
+
+#     return `defaultConfig {\n${block}\n    }`;
+#   });
+# }
+
+# // Native queue + module
+#   config = withBashShareQueueFile(config);
+#   config = withBashShareNativeModule(config);
+#   config = withRegisterBashSharePackage(config);

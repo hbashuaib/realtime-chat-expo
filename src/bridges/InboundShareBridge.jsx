@@ -56,6 +56,27 @@ export default function InboundShareBridge({ onShare }) {
       /*__ONSHARE_NORMALIZED__*/ 
       /*__ONSHARE_NORMALIZED__*/ 
       /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
+      /*__ONSHARE_NORMALIZED__*/ 
       if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }
 return;
     }

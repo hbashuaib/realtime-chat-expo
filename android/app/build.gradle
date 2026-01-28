@@ -100,15 +100,12 @@ android {
 
     namespace 'com.anonymous.realtimechatexpo'
     defaultConfig {
-        targetSdkVersion 35
+applicationId 'com.anonymous.realtimechatexpo'
         minSdkVersion 24
-
-        applicationId 'com.anonymous.realtimechatexpo'
-
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0.0"
-
-        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", ""${findProperty('reactNativeReleaseLevel') ?: 'stable'}""
     }\""
     }
     signingConfigs {
@@ -167,20 +164,26 @@ android {
 }
 
 dependencies {
-
-    // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
     implementation("androidx.appcompat:appcompat:1.6.1")
 
-    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
-    def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
-    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
-
     if (isGifEnabled) {
-        // For animated gif support
-        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
+    }
+    if (isWebpEnabled) {
+        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
+        if (isWebpAnimatedEnabled) {
+            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
+        }
+    }
     implementation project(':bash-share-module')
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
 }")
     }
 

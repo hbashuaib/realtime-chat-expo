@@ -17,23 +17,12 @@ function stripBuildTools(content) {
   return content.replace(/^\s*buildToolsVersion\s+.*\n/gm, "");
 }
 
+// Normalize defaultConfig block
 function normalizeDefaultConfigBlock(content) {
-  // Ensure defaultConfig has single numeric min/target sdk lines,
-  // and remove any rootProject.ext overrides that re-introduce API 29.
   return content.replace(/defaultConfig\s*\{([\s\S]*?)\}/m, (match, inner) => {
     let block = inner;
 
-    // Remove any rootProject.ext based lines
-    block = block.replace(
-      /^\s*minSdkVersion\s+rootProject\.ext\.minSdkVersion\s*$/gm,
-      "",
-    );
-    block = block.replace(
-      /^\s*targetSdkVersion\s+rootProject\.ext\.targetSdkVersion\s*$/gm,
-      "",
-    );
-
-    // Normalize any existing min/target lines (numeric or not) to correct values
+    // Normalize min/target SDK
     block = block.replace(
       /^\s*minSdkVersion\s+.*$/gm,
       "        minSdkVersion 24",
@@ -43,13 +32,16 @@ function normalizeDefaultConfigBlock(content) {
       "        targetSdkVersion 35",
     );
 
-    // If min/target lines are missing, inject them near top of the block
-    if (!/minSdkVersion\s+24/.test(block)) {
-      block = `        minSdkVersion 24\n` + block;
-    }
-    if (!/targetSdkVersion\s+35/.test(block)) {
-      block = `        targetSdkVersion 35\n` + block;
-    }
+    // Remove any existing REACT_NATIVE_RELEASE_LEVEL lines
+    block = block.replace(
+      /^\s*buildConfigField\s+"String",\s+"REACT_NATIVE_RELEASE_LEVEL".*$/gm,
+      "",
+    );
+
+    // Add one clean buildConfigField line
+    block =
+      block.trim() +
+      '\n        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty(\'reactNativeReleaseLevel\') ?: \'stable\'}\""';
 
     return `defaultConfig {\n${block}\n    }`;
   });
@@ -104,6 +96,66 @@ function ensureKotlinStdlibDependency(content) {
   );
 }
 
+function fixFrescoAndShareModule(content) {
+  // Ensure the def lines exist above dependencies
+  if (!content.includes("def isGifEnabled")) {
+    content = content.replace(
+      /dependencies\s*\{/,
+      `def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true"
+def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true"
+def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true"
+
+dependencies {`,
+    );
+  }
+
+  // Ensure Kotlin stdlib
+  if (!content.includes("org.jetbrains.kotlin:kotlin-stdlib")) {
+    content = content.replace(
+      /implementation\("com.facebook.react:react-android"\)/,
+      `implementation("com.facebook.react:react-android")
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"`,
+    );
+  }
+
+  // Ensure AppCompat
+  if (!content.includes("androidx.appcompat:appcompat")) {
+    content = content.replace(
+      /implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"/,
+      `implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
+    implementation("androidx.appcompat:appcompat:1.6.1")`,
+    );
+  }
+
+  // Replace the entire dependencies block cleanly
+  content = content.replace(/dependencies\s*\{[\s\S]*?\}/m, () => {
+    return `dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
+    implementation("androidx.appcompat:appcompat:1.6.1")
+
+    if (isGifEnabled) {
+        implementation("com.facebook.fresco:animated-gif:\${expoLibs.versions.fresco.get()}")
+    }
+    if (isWebpEnabled) {
+        implementation("com.facebook.fresco:webpsupport:\${expoLibs.versions.fresco.get()}")
+        if (isWebpAnimatedEnabled) {
+            implementation("com.facebook.fresco:animated-webp:\${expoLibs.versions.fresco.get()}")
+        }
+    }
+    implementation project(':bash-share-module')
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}`;
+  });
+
+  return content;
+}
+
 // NEW helper to ensure Kotlin version + classpath in root build.gradle
 function ensureKotlinRoot(content) {
   if (content.includes("org.jetbrains.kotlin:kotlin-gradle-plugin")) {
@@ -151,6 +203,9 @@ function patchAppBuildGradle(content) {
 
   // 7) Ensure Kotlin stdlib dependency
   updated = ensureKotlinStdlibDependency(updated);
+
+  // 8) Fix Fresco + bash-share-module dependency block
+  updated = fixFrescoAndShareModule(updated);
 
   return updated;
 }

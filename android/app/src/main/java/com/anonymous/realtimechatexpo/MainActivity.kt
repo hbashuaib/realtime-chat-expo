@@ -85,11 +85,11 @@ class MainActivity : ReactActivity() {
       super.invokeDefaultOnBackPressed()
   }
 
-  override fun onResume() {
-      super.onResume()
-      android.util.Log.e("BashChatTest", ">>> onResume: listener handles delivery; no manual flush")
-  }
-
+      override fun onResume() {
+          super.onResume()
+          android.util.Log.e("BashChatTest", ">>> onResume: listener handles delivery; no manual flush")
+      }
+    
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
@@ -203,13 +203,7 @@ class MainActivity : ReactActivity() {
     val action = intent.action
     val type = intent.type ?: ""
     android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
-    
-    // // Handle SEND (and keep room for SEND_MULTIPLE later)
-    // if (action != Intent.ACTION_SEND) {
-    //     android.util.Log.e("BashChatTest", ">>> Non-SEND action received: $action")
-    //     return
-    // }    
-    
+        
     // Helper to escape JSON strings
     fun normalizeText(raw: String): String {
         // Trim whitespace and common quote characters to avoid "\"text\"" payloads
@@ -278,33 +272,7 @@ class MainActivity : ReactActivity() {
     if (!isSend && !isSendMultiple && !isView) {
         android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
         return
-    }
-
-    // // TEXT: strip URLs
-    // if (type.startsWith("text/")) {
-    //   val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-    //   if (!sharedText.isNullOrEmpty()) {
-    //       // val cleaned = normalizeText(stripUrls(sharedText ?: ""))
-    //       val cleaned = normalizeText(sharedText ?: "")
-    //       val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-    //       android.util.Log.e("BashChatTest", ">>> Built text JSON: $json")
-    //       emitJson(json)
-    //       android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
-    //       return
-    //   }
-    //   val clip = intent.clipData
-    //   val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-    //   if (!clipText.isNullOrEmpty()) {
-    //       // val cleaned = normalizeText(stripUrls(clipText?.toString() ?: ""))
-    //       val cleaned = normalizeText(clipText?.toString() ?: "")
-    //       val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-    //       android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
-    //       emitJson(json)
-    //       android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
-    //       return
-    //   }
-    //   return
-    // }
+    }    
 
     // TEXT via type (secondary path for clipData text)
     if (type.startsWith("text/")) {

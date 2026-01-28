@@ -1,3 +1,4 @@
+// bash-share-module/android/build.gradle
 apply plugin: 'com.android.library'
 apply plugin: 'org.jetbrains.kotlin.android'
 
