@@ -789,7 +789,7 @@ function withNoOpMainActivity(config) {
   return withMainActivity(config, (cfg) => cfg);
 }
 
-// Improved InboundShareBridge.jsx patches with string branch + brace fixes
+// Patch InboundShareBridge.jsx to normalize onShare handling and dedup lastKey assignments
 function withInboundShareBridgePatches(config) {
   return withDangerousMod(config, [
     "android",
@@ -804,90 +804,33 @@ function withInboundShareBridgePatches(config) {
 
       let js = fs.readFileSync(jsPath, "utf8");
 
-      // --- 0. Idempotency markers: skip if already normalized ---
+      // --- 0. Idempotency marker ---
       if (js.includes("/*__ONSHARE_NORMALIZED__*/")) {
-        console.log(
-          "ℹ️ InboundShareBridge already normalized — skipping Step 2.",
-        );
+        console.log("ℹ️ InboundShareBridge already normalized — skipping.");
+        return cfg;
       }
 
-      // --- Patch payload handling to set lastKey ---
-      js = js.replace(
-        /payload\s*=\s*\{\s*kind:\s*"text",\s*text:\s*String\(parsed\.text\s*\|\|\s*""\)\.trim\(\)\s*\};/g,
-        'payload = { kind: "text", text: String(parsed.text || "").trim() }; lastKey = JSON.stringify(payload);',
-      );
-      js = js.replace(
-        /payload\s*=\s*\{\s*kind:\s*"media",\s*payload:\s*parsed\.payload\s*\|\|\s*parsed\s*\};/g,
-        'payload = { kind: "media", payload: parsed.payload || parsed }; lastKey = JSON.stringify(payload);',
-      );
-      js = js.replace(
-        /payload\s*=\s*\{\s*kind:\s*"text",\s*text:\s*raw\.trim\(\)\s*\};/g,
-        'payload = { kind: "text", text: raw.trim() }; lastKey = JSON.stringify(payload);',
-      );
-
-      // --- 1. Remove commented duplicates ---
-      js = js.replace(
-        /\/\/\s*if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);/g,
-        "",
-      );
-
-      // --- 2. Normalize ANY onShare routing block (consume closing brace too) ---
+      // --- 1. Normalize onShare routing block (consume closing brace too) ---
       js = js.replace(
         /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*\}/g,
-        `/*__ONSHARE_NORMALIZED__*/ 
-      if (typeof onShare === "function") {
-        console.log("[Inbound Share] Routed payload to onShare:", payload);
-        onShare(payload);
-      } else {
-        console.log("[Inbound Share] Routed payload to global store:", payload);
-        setInboundShare(payload);
-      }`,
-      );
-
-      // --- 3. Fix the string branch (remove stray brace before return) ---
-      js = js.replace(
-        /(if\s*\(\s*typeof\s+raw\s*===\s*"string"\s*\)\s*\{[\s\S]*?)(if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*)\}\s*return\s*;/,
-        '$1if (typeof onShare === "function") { console.log("[Inbound Share] Routed string payload to onShare:", payload); onShare(payload); } else { console.log("[Inbound Share] Routed string payload to global store:", payload); setInboundShare(payload); }\nreturn;',
-      );
-
-      // --- 4. Force replace the nativeEvent branch with correct structure ---
-      js = js.replace(
-        /if\s*\(raw\s*&&\s*typeof\s*raw\s*===\s*"object"\s*&&\s*typeof\s*raw\.nativeEvent\s*===\s*"string"\s*\)\s*\{[\s\S]*?return;\s*\}/,
-        `if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
-        const payload = { kind: "text", text: raw.nativeEvent.trim() };
+        `/*__ONSHARE_NORMALIZED__*/
         if (typeof onShare === "function") {
-          console.log("[Inbound Share] Routed nativeEvent payload to onShare:", payload);
+          console.log("[Inbound Share] Routed payload to onShare:", payload);
           onShare(payload);
         } else {
-          console.log("[Inbound Share] Routed nativeEvent payload to global store:", payload);
+          console.log("[Inbound Share] Routed payload to global store:", payload);
           setInboundShare(payload);
-        }
-        console.log("[Inbound Share] Payload(nativeEvent):", payload);
-        lastKey = JSON.stringify(payload);
-        return;
-      }`,
+        }`
       );
 
-      // --- Dedup check: only one assignment ---
-      js = js.replace(
-        /if \(key && key === lastKey\)[\s\S]*?lastKey = key;/,
-        `if (typeof key !== "undefined" && key && key === lastKey) {
-            console.log("[Inbound Share] Duplicate event ignored");
-            return;
-          }
-          lastKey = key;`,
-      );
-
-      // --- Remove repeated lastKey assignments ---
+      // --- 2. Dedup lastKey assignments ---
       js = js.replace(
         /lastKey\s*=\s*JSON\.stringify\(payload\);\s*(lastKey\s*=\s*JSON\.stringify\(payload\);\s*)+/g,
-        "lastKey = JSON.stringify(payload);",
+        "lastKey = JSON.stringify(payload);"
       );
 
       fs.writeFileSync(jsPath, js);
-      console.log(
-        "✅ Patched InboundShareBridge.jsx (dedup + onShare + string/nativeEvent brace fixes)",
-      );
+      console.log("✅ Patched InboundShareBridge.jsx (normalized onShare + dedup)");
       return cfg;
     },
   ]);

@@ -13,6 +13,12 @@ import "@/src/core/fontawesome";
 import useGlobal from "@/src/core/global";
 import { ColorScheme, theme } from "@/src/core/theme";
 
+import BashShareModule from "bash-share-module";
+
+console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
+
+
+
 export default function RootLayout() {
   const colorScheme = (useGlobal((s) => s.themeMode) || "light") as ColorScheme;
   const activeFriend = useGlobal((s) => s.activeFriend);
@@ -29,6 +35,17 @@ export default function RootLayout() {
   useEffect(() => {
     init();
   }, [init]);
+
+  // Debug ping to BashShareModule
+  useEffect(() => {
+    if (BashShareModule?.ping) {
+      BashShareModule.ping().then((res: string) =>
+        console.log("[Debug] Ping result:", res)
+      );
+    } else {
+      console.warn("[Debug] BashShareModule.ping not available");
+    }
+  }, []);
 
   const currentTheme = theme[colorScheme];  
 

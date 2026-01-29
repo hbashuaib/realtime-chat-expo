@@ -164,6 +164,7 @@ kill-metro:
 
 # adb logcat -s BashChatTest ReactNative
 
+# ./gradlew :app:dependencies | findstr bash-share-module
 
 # npx expo run:android --variant release
 # npx expo start
