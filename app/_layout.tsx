@@ -17,8 +17,6 @@ import BashShareModule from "bash-share-module";
 
 console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
 
-
-
 export default function RootLayout() {
   const colorScheme = (useGlobal((s) => s.themeMode) || "light") as ColorScheme;
   const activeFriend = useGlobal((s) => s.activeFriend);

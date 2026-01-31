@@ -1,5 +1,5 @@
-// index.js
-import { NativeModules } from 'react-native';
+import { NativeModules, NativeEventEmitter } from 'react-native';
 
-// Export the native module so JS can use it
-export default NativeModules.BashShareModule;
+const BashShareModule = NativeModules.BashShareModule;
+export const BashShareEmitter = new NativeEventEmitter(BashShareModule);
+export default BashShareModule;

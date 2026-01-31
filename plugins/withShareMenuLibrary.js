@@ -5,6 +5,7 @@ const {
   withAndroidManifest,
   withMainActivity,
   withDangerousMod,
+  withMainApplication,
 } = require("@expo/config-plugins");
 
 const fs = require("fs");
@@ -271,6 +272,31 @@ import com.anonymous.realtimechatexpo.BuildConfig
   // >>> MainActivity onCreate injected
   android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
   android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
+
+  val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+
+  // Always add a listener once per app start
+  manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+    override fun onReactContextInitialized(readyContext: ReactContext) {
+      android.util.Log.e("BashChatTest", ">>> ReactContext ready; flushing pending share")
+      val immediate = pendingShareIntent ?: pendingShareStatic
+      if (immediate != null) {
+        forwardIntentToJS(readyContext, immediate)
+      }
+      manager.removeReactInstanceEventListener(this)
+    }
+  })
+
+  // Flush immediately if context is already active
+  val existingContext = manager.currentReactContext
+  if (existingContext != null) {
+    android.util.Log.e("BashChatTest", ">>> ReactContext already active; flushing pending share")
+    val immediate = pendingShareIntent ?: pendingShareStatic
+    if (immediate != null) {
+      forwardIntentToJS(existingContext, immediate)
+    }
+  }
+
   val intent = getIntent()
   if (intent != null && intent.action != Intent.ACTION_MAIN) {
     emitShareIntentToJS(intent)
@@ -295,7 +321,17 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
       override fun onResume() {
           super.onResume()
-          android.util.Log.e("BashChatTest", ">>> onResume: listener handles delivery; no manual flush")
+          android.util.Log.e("BashChatTest", ">>> onResume: checking for pending share")
+
+          val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+          val context = manager.currentReactContext
+          if (context != null) {
+              val immediate = pendingShareIntent ?: pendingShareStatic
+              if (immediate != null) {
+                  android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
+                  forwardIntentToJS(context, immediate)
+              }
+          }
       }
     }
     `,
@@ -331,11 +367,9 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
     if (context == null) {
       android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing NEW share (overwrite)")
-      // Always replace stale with latest
       pendingShareIntent = intent
       pendingShareStatic = intent
 
-      // Force-create React context immediately
       try {
         android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
         manager.createReactContextInBackground()
@@ -343,71 +377,67 @@ import com.anonymous.realtimechatexpo.BuildConfig
         android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
       }
 
-      manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-        override fun onReactContextInitialized(readyContext: ReactContext) {
-          android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
-          val handler = android.os.Handler(android.os.Looper.getMainLooper())
+      // manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+      //   override fun onReactContextInitialized(readyContext: ReactContext) {
+      //     android.util.Log.e("BashChatTest", ">>> ReactContext ready; scheduling flushes")
+      //     val handler = android.os.Handler(android.os.Looper.getMainLooper())
         
-          // Immediate flush as soon as context is ready
-          val immediate = pendingShareIntent ?: pendingShareStatic
-          if (immediate != null) {
-            handler.post {
-              android.util.Log.e("BashChatTest", ">>> Forwarding pending share immediately")
-              forwardIntentToJS(readyContext, immediate)
-              // Keep pending until JS confirms receipt via emitJson success
-              // forwardIntentToJS will clear queues only after successful emit
-              // Do not clear here; let emitJson decide
-            }
-          } else {
-            android.util.Log.e("BashChatTest", ">>> No pending share at immediate flush")
-          }
+      //     // Immediate flush as soon as context is ready
+      //     val immediate = pendingShareIntent ?: pendingShareStatic
+      //     if (immediate != null) {
+      //       handler.post {
+      //         android.util.Log.e("BashChatTest", ">>> Forwarding pending share immediately")
+      //         forwardIntentToJS(readyContext, immediate)
+      //         // Keep pending until JS confirms receipt via emitJson success
+      //         // forwardIntentToJS will clear queues only after successful emit
+      //         // Do not clear here; let emitJson decide
+      //       }
+      //     } else {
+      //       android.util.Log.e("BashChatTest", ">>> No pending share at immediate flush")
+      //     }
 
-          // First delayed flush ~2.5s
-          handler.postDelayed({
-            val toForward = pendingShareIntent ?: pendingShareStatic
-            android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
-            if (toForward != null) {
-              forwardIntentToJS(readyContext, toForward)
-              // ❌ Do not clear here — emitJson clears after success
-            }
-          }, 2500)          
+      //     // First delayed flush ~2.5s
+      //     handler.postDelayed({
+      //       val toForward = pendingShareIntent ?: pendingShareStatic
+      //       android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms). instance=$pendingShareIntent static=$pendingShareStatic")
+      //       if (toForward != null) {
+      //         forwardIntentToJS(readyContext, toForward)
+      //         // ❌ Do not clear here — emitJson clears after success
+      //       }
+      //     }, 2500)          
 
-          // Second delayed flush ~5s
-          handler.postDelayed({
-            val toForward2 = pendingShareIntent ?: pendingShareStatic
-            android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
-            if (toForward2 != null) {
-              forwardIntentToJS(readyContext, toForward2)
-              // ❌ Do not clear here — emitJson clears after success
-            }
-          }, 5000)
+      //     // Second delayed flush ~5s
+      //     handler.postDelayed({
+      //       val toForward2 = pendingShareIntent ?: pendingShareStatic
+      //       android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+      //       if (toForward2 != null) {
+      //         forwardIntentToJS(readyContext, toForward2)
+      //         // ❌ Do not clear here — emitJson clears after success
+      //       }
+      //     }, 5000)
           
-          // Optional third flush ~8s
-          handler.postDelayed({
-            val toForward3 = pendingShareIntent ?: pendingShareStatic
-            android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms). instance=$pendingShareIntent static=$pendingShareStatic")
-            if (toForward3 != null) {
-              forwardIntentToJS(readyContext, toForward3)
-            }
-          }, 8000)
+      //     // Optional third flush ~8s
+      //     handler.postDelayed({
+      //       val toForward3 = pendingShareIntent ?: pendingShareStatic
+      //       android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms). instance=$pendingShareIntent static=$pendingShareStatic")
+      //       if (toForward3 != null) {
+      //         forwardIntentToJS(readyContext, toForward3)
+      //       }
+      //     }, 8000)
 
-          manager.removeReactInstanceEventListener(this)
+      //     manager.removeReactInstanceEventListener(this)
           
-        }
-      })
+      //   }
+      // })
       
-      // Fallback recreate if still null at ~3500ms
-      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-        if (manager.currentReactContext == null) {
-          android.util.Log.e("BashChatTest", ">>> Recreating React context in background (fallback)")
-          try {
-            android.util.Log.e("BashChatTest", ">>> Manager React context in background (fallback)")
-            manager.recreateReactContextInBackground()
-          } catch (e: Exception) {
-            android.util.Log.e("BashChatTest", "!!! Failed to recreate React context: ${"${"}e.message${"}"}", e)
-          }
-        }
-      }, 3500)    
+      // // Fallback recreate if still null at ~3500ms
+      // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+      //   if (manager.currentReactContext == null) {
+      //     android.util.Log.e("BashChatTest", ">>> ReactContext still null at fallback; skipping recreate to avoid AssertionError")
+      //     // Do NOT call recreateReactContextInBackground here.
+      //     // Leave pendingShareIntent queued; it will flush once context is ready.
+      //   }
+      // }, 3500) 
 
       return
     }
@@ -784,6 +814,31 @@ function withShareMenuActivityJava(config) {
   ]);
 }
 
+// Ensure BashSharePackage is included in MainApplication.java
+function withBashSharePackage(config) {
+  return withMainApplication(config, (cfg) => {
+    let src = cfg.modResults.contents;
+
+    // 1. Import BashSharePackage
+    if (!src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")) {
+      src = src.replace(
+        /(package[^\n]*\n)/,
+        `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`
+      );
+    }
+
+    // 2. Add BashSharePackage to getPackages()
+    src = src.replace(
+      /(PackageList\(this\)\.packages\.apply \{)/,
+      `$1\n      add(BashSharePackage())`
+    );
+
+    cfg.modResults.contents = src;
+    return cfg;
+  });
+}
+
+
 // Optional: ensure no custom inbound handlers collide (we keep MainActivity untouched)
 function withNoOpMainActivity(config) {
   return withMainActivity(config, (cfg) => cfg);
@@ -844,10 +899,9 @@ module.exports = function withShareMenuLibrary(config) {
   config = withMainActivityLogging(config);
   config = withShareMenuActivityJava(config);
   config = withNormalizeAppIcon(config);
-  config = withScrubMissingRoundIcon(config);
-
-  // JS patches
-  config = withInboundShareBridgePatches(config); // ✅ new
+  config = withScrubMissingRoundIcon(config);  
+  config = withInboundShareBridgePatches(config); 
+  config = withBashSharePackage(config);
 
   return config;
 };
