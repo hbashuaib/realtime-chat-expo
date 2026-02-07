@@ -77,6 +77,24 @@ export default function InboundShareBridge({ onShare }) {
     console.log("[Inbound Share] Bridge mounted");
     console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
 
+    // 🔍 Test direct method calls
+    if (BashShareModule?.ping) {
+      BashShareModule.ping().then(res => {
+        console.log("[Debug] Ping result:", res);
+      }).catch(err => console.error("[Debug] Ping error:", err));
+    }
+
+    if (BashShareModule?.consumePendingShare) {
+      BashShareModule.consumePendingShare()
+        .then(res => console.log("[Debug] consumePendingShare result:", res))
+        .catch(err => console.error("[Debug] consumePendingShare error:", err));
+    }
+
+    if (BashShareModule?.notifyShareReceived) {
+      BashShareModule.notifyShareReceived(JSON.stringify({ kind: "text", text: "test payload" }));
+      console.log("[Debug] notifyShareReceived called with test payload");
+    }
+
     // Subscribe to native event
     const subscription = emitter.addListener("onShareReceived", async (raw) => {
       console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);
