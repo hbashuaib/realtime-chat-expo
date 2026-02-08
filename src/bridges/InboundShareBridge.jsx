@@ -90,16 +90,18 @@ export default function InboundShareBridge({ onShare }) {
         .catch(err => console.error("[Debug] consumePendingShare error:", err));
     }
 
-    if (BashShareModule?.notifyShareReceived) {
-      BashShareModule.notifyShareReceived(JSON.stringify({ kind: "text", text: "test payload" }));
-      console.log("[Debug] notifyShareReceived called with test payload");
-    }
+    // if (BashShareModule?.notifyShareReceived) {
+    //   BashShareModule.notifyShareReceived(JSON.stringify({ kind: "text", text: "test payload" }));
+    //   console.log("[Debug] notifyShareReceived called with test payload");
+    // }
 
     // Subscribe to native event
     const subscription = emitter.addListener("onShareReceived", async (raw) => {
       console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);
       await consume(raw);
     });
+
+    console.log("[Inbound Share] Listener mounted at", Date.now());
 
     // Optional: one initial poll
     if (BashShareModule?.consumePendingShare) {

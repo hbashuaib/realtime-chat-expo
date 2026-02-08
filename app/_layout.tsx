@@ -15,6 +15,7 @@ import { ColorScheme, theme } from "@/src/core/theme";
 
 import BashShareModule from "bash-share-module";
 
+
 console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
 
 export default function RootLayout() {
@@ -48,10 +49,10 @@ export default function RootLayout() {
   const currentTheme = theme[colorScheme];  
 
   type SharePayload =
-  | { text: string }
-  | { image: string; filename?: string; base64?: string }
-  | { video_url: string; video_filename?: string; video?: string }
-  | { voice: string; filename: string; base64?: string };
+  | { kind: "text"; text: string }
+  | { kind: "image"; image: string; filename?: string; base64?: string }
+  | { kind: "video"; video_url: string; video_filename?: string; video?: string }
+  | { kind: "voice"; voice: string; filename: string; base64?: string };
 
   type InboundPayload = SharePayload;
 
@@ -86,6 +87,7 @@ export default function RootLayout() {
     });
     setQueuedPayload(null);
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
+ 
 
   return (
     <>

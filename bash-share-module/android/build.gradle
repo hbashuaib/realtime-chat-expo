@@ -1,7 +1,7 @@
 // bash-share-module/android/build.gradle
 apply plugin: 'com.android.library'
 apply plugin: 'org.jetbrains.kotlin.android'
-apply plugin: 'com.facebook.react'   // ✅ Add React Native Gradle plugin
+apply plugin: 'com.facebook.react'   // Add React Native Gradle plugin
 
 android {
     namespace "com.anonymous.realtimechatexpo"
@@ -20,12 +20,12 @@ android {
     }
 
     buildFeatures {
-        buildConfig = true   // ✅ Ensure BuildConfig.java is generated
+        buildConfig = true   // Ensure BuildConfig.java is generated
     }
 }
 
 dependencies {
-    // ✅ Use react-android instead of react-native:+
+    // Use react-android instead of react-native:+
     implementation("com.facebook.react:react-android")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
 }
