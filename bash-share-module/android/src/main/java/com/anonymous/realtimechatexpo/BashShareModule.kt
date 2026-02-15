@@ -11,7 +11,12 @@ import com.facebook.react.bridge.Promise
 class BashShareModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
-  override fun getName(): String = "BashShareModule"
+  // override fun getName(): String = "BashShareModule"
+  override fun getName(): String {
+      android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: BashShareModule")
+      return "BashShareModule"
+  }
+
 
   // Required for NativeEventEmitter
   @ReactMethod
@@ -20,7 +25,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun removeListeners(count: Int) { /* no-op */ }
 
-  // ✅ NEW: trivial test method to confirm bridge works
+  // NEW: trivial test method to confirm bridge works
   @ReactMethod
   fun ping(promise: Promise) {
     promise.resolve("pong from native")

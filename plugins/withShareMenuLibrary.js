@@ -284,7 +284,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
         forwardIntentToJS(readyContext, immediate)        
       }
 
-      // ✅ Always flush BashShareQueue into JS
+      // Always flush BashShareQueue into JS
       val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
       if (!pendingJson.isNullOrEmpty()) {
           val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -343,15 +343,35 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
           val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
           val context = manager.currentReactContext
-          if (context != null) {
-              val immediate = pendingShareIntent ?: pendingShareStatic
-              if (immediate != null) {
-                  android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
-                  forwardIntentToJS(context, immediate)                  
-              }              
+
+          // Flush intent if present
+          val immediate = pendingShareIntent ?: pendingShareStatic
+          if (context != null && immediate != null) {
+              android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
+              forwardIntentToJS(context, immediate)
           }
-        // ✅ No BashShareQueue flush here
-                
+
+          // NEW: Always flush BashShareQueue here too
+          val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
+          android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
+          if (!pendingJson.isNullOrEmpty() && context != null) {
+              val module = context.getNativeModule(BashShareModule::class.java)
+              if (module != null) {
+                  val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                  uiHandler.postDelayed(object : Runnable {
+                      override fun run() {
+                          if (context.hasActiveCatalystInstance()) {
+                              android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue (retry) with: $pendingJson")
+                              module.notifyShareReceived(pendingJson)
+                              com.anonymous.realtimechatexpo.BashShareQueue.consume()
+                          } else {
+                              android.util.Log.e("BashChatTest", ">>> Catalyst not active yet, retrying in 1s")
+                              uiHandler.postDelayed(this, 1000)
+                          }
+                      }
+                  }, 1000)
+              }
+          }
       }
     }
     `,
@@ -378,7 +398,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
           return
       }
 
-      // ✅ Do not flush here — just queue
+      // Do not flush here — just queue
       pendingShareIntent = intent
       pendingShareStatic = intent
 
@@ -414,7 +434,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
       pendingShareIntent = intent
       pendingShareStatic = intent
 
-      // ✅ Build and enqueue JSON even if context is null
+      // Build and enqueue JSON even if context is null
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
         val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
@@ -437,7 +457,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
     val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     uiHandler.post {
       forwardIntentToJS(context, intent)
-      // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+      // Do not clear here — forwardIntentToJS clears after successful emit
     }
   }
 
@@ -473,7 +493,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
               try {
                   val bashShareModule = context.getNativeModule(BashShareModule::class.java)
                   
-                  // 🔍 Timestamp log before emitting
+                  // Timestamp log before emitting
                   android.util.Log.e("BashChatTest", ">>> About to notifyShareReceived at " + System.currentTimeMillis())
 
                   bashShareModule?.notifyShareReceived(json)
@@ -670,7 +690,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
       fs.writeFileSync(mainActivityPath, ma);
       console.log(
-        "✅ Stripped manual clears from MainActivity delayed flushes",
+        "Stripped manual clears from MainActivity delayed flushes",
       );
     }
 
@@ -819,10 +839,14 @@ function withBashSharePackage(config) {
       );
     }
 
-    // 2. Add BashSharePackage to getPackages()
+    // 2. Replace the existing getPackages() override entirely
     src = src.replace(
-      /(PackageList\(this\)\.packages\.apply \{)/,
-      `$1\n      add(BashSharePackage())`
+      /override fun getPackages\(\): List<ReactPackage>[^{]*\{[^}]*\}/,
+      `override fun getPackages(): List<ReactPackage> {
+        val packages = PackageList(this).packages.toMutableList()
+        packages.add(BashSharePackage())
+        return packages
+      }`
     );
 
     cfg.modResults.contents = src;
@@ -853,7 +877,7 @@ function withInboundShareBridgePatches(config) {
 
       // --- 0. Idempotency marker ---
       if (js.includes("/*__ONSHARE_NORMALIZED__*/")) {
-        console.log("ℹ️ InboundShareBridge already normalized — skipping.");
+        console.log("InboundShareBridge already normalized — skipping.");
         return cfg;
       }
 
@@ -877,7 +901,7 @@ function withInboundShareBridgePatches(config) {
       );
 
       fs.writeFileSync(jsPath, js);
-      console.log("✅ Patched InboundShareBridge.jsx (normalized onShare + dedup)");
+      console.log("Patched InboundShareBridge.jsx (normalized onShare + dedup)");
       return cfg;
     },
   ]);

@@ -172,6 +172,12 @@ kill-metro:
 
 # ./rebuild.ps1
 
+# git status
+# git branch
+# git add -A
+# git commit -m "Daily update: work progress and fixes"
+# git push origin master
+
 # To check if ShareMenuActivity is in the APK manifest:
 # & "C:\Users\w3h333\AppData\Local\Android\Sdk\build-tools\36.1.0\aapt2.exe" dump xmltree "D:\My Projects\realtime-chat-expo\android\app\build\outputs\apk\debug\app-debug.apk" --file AndroidManifest.xml | Select-String "ShareMenuActivity"
 

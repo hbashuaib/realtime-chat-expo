@@ -76,6 +76,7 @@ export default function InboundShareBridge({ onShare }) {
 
     console.log("[Inbound Share] Bridge mounted");
     console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
+    console.log("[Inbound Share Debug] NativeModules keys:", Object.keys(NativeModules));
 
     // 🔍 Test direct method calls
     if (BashShareModule?.ping) {

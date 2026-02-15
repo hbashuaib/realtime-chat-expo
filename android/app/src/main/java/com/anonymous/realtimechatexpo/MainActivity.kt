@@ -47,7 +47,7 @@ class MainActivity : ReactActivity() {
         forwardIntentToJS(readyContext, immediate)        
       }
 
-      // ✅ Always flush BashShareQueue into JS
+      // Always flush BashShareQueue into JS
       val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
       if (!pendingJson.isNullOrEmpty()) {
           val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -134,15 +134,35 @@ class MainActivity : ReactActivity() {
 
           val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
           val context = manager.currentReactContext
-          if (context != null) {
-              val immediate = pendingShareIntent ?: pendingShareStatic
-              if (immediate != null) {
-                  android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
-                  forwardIntentToJS(context, immediate)                  
-              }              
+
+          // Flush intent if present
+          val immediate = pendingShareIntent ?: pendingShareStatic
+          if (context != null && immediate != null) {
+              android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
+              forwardIntentToJS(context, immediate)
           }
-        // ✅ No BashShareQueue flush here
-                
+
+          // NEW: Always flush BashShareQueue here too
+          val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
+          android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
+          if (!pendingJson.isNullOrEmpty() && context != null) {
+              val module = context.getNativeModule(BashShareModule::class.java)
+              if (module != null) {
+                  val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                  uiHandler.postDelayed(object : Runnable {
+                      override fun run() {
+                          if (context.hasActiveCatalystInstance()) {
+                              android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue (retry) with: $pendingJson")
+                              module.notifyShareReceived(pendingJson)
+                              com.anonymous.realtimechatexpo.BashShareQueue.consume()
+                          } else {
+                              android.util.Log.e("BashChatTest", ">>> Catalyst not active yet, retrying in 1s")
+                              uiHandler.postDelayed(this, 1000)
+                          }
+                      }
+                  }, 1000)
+              }
+          }
       }
     
   override fun onNewIntent(intent: Intent) {
@@ -156,7 +176,7 @@ class MainActivity : ReactActivity() {
           return
       }
 
-      // ✅ Do not flush here — just queue
+      // Do not flush here — just queue
       pendingShareIntent = intent
       pendingShareStatic = intent
 
@@ -192,7 +212,7 @@ class MainActivity : ReactActivity() {
       pendingShareIntent = intent
       pendingShareStatic = intent
 
-      // ✅ Build and enqueue JSON even if context is null
+      // Build and enqueue JSON even if context is null
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
         val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
@@ -215,7 +235,7 @@ class MainActivity : ReactActivity() {
     val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     uiHandler.post {
       forwardIntentToJS(context, intent)
-      // ❌ Do not clear here — forwardIntentToJS clears after successful emit
+      // Do not clear here — forwardIntentToJS clears after successful emit
     }
   }
 
@@ -251,7 +271,7 @@ class MainActivity : ReactActivity() {
               try {
                   val bashShareModule = context.getNativeModule(BashShareModule::class.java)
                   
-                  // 🔍 Timestamp log before emitting
+                  // Timestamp log before emitting
                   android.util.Log.e("BashChatTest", ">>> About to notifyShareReceived at " + System.currentTimeMillis())
 
                   bashShareModule?.notifyShareReceived(json)
