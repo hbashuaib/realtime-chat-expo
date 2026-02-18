@@ -17,5 +17,12 @@
   "license": "MIT",
   "peerDependencies": {
     "react-native": "*"
+  },
+  "react-native": {
+    "android": {
+      "sourceDir": "./android",
+      "packageImportPath": "import com.anonymous.realtimechatexpo.BashSharePackage",
+      "packageInstance": "BashSharePackage()"
+    }
   }
 }

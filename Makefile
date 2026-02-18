@@ -123,6 +123,8 @@ kill-metro:
 
 # .\nginx.exe
 
+# adb logcat -s BashChatTest ReactNative
+
 
 
 # adb logcat | findstr BashChatShare

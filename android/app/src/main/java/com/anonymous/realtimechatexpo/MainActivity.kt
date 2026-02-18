@@ -142,28 +142,16 @@ class MainActivity : ReactActivity() {
               forwardIntentToJS(context, immediate)
           }
 
-          // NEW: Always flush BashShareQueue here too
+          // Flush BashShareQueue
           val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
           android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
-          if (!pendingJson.isNullOrEmpty() && context != null) {
-              val module = context.getNativeModule(BashShareModule::class.java)
-              if (module != null) {
-                  val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
-                  uiHandler.postDelayed(object : Runnable {
-                      override fun run() {
-                          if (context.hasActiveCatalystInstance()) {
-                              android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue (retry) with: $pendingJson")
-                              module.notifyShareReceived(pendingJson)
-                              com.anonymous.realtimechatexpo.BashShareQueue.consume()
-                          } else {
-                              android.util.Log.e("BashChatTest", ">>> Catalyst not active yet, retrying in 1s")
-                              uiHandler.postDelayed(this, 1000)
-                          }
-                      }
-                  }, 1000)
-              }
+
+          if (!pendingJson.isNullOrEmpty()) {
+              android.util.Log.e("BashChatTest", ">>> Holding BashShareQueue until JS consumes")
+              // ❌ Do not emit or consume here
+              // ✅ Leave it queued for JS to fetch via consumePendingShare()
           }
-      }
+      }   // ✅ only one brace closes onResume
     
   override fun onNewIntent(intent: Intent) {
       super.onNewIntent(intent)
@@ -231,12 +219,10 @@ class MainActivity : ReactActivity() {
       return
     }
 
-    // ReactContext is ready — forward immediately on UI thread
-    val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    uiHandler.post {
-      forwardIntentToJS(context, intent)
-      // Do not clear here — forwardIntentToJS clears after successful emit
-    }
+    // ❌ Remove immediate forwarding
+    // ✅ Only queue intent; JS will consume later
+    pendingShareIntent = intent
+    pendingShareStatic = intent
   }
 
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
@@ -263,35 +249,11 @@ class MainActivity : ReactActivity() {
       } catch (e: Exception) {
         android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
       }
-
-      // Emit only when context is active; run on UI thread and clear on success
-      if (context.hasActiveCatalystInstance()) {
-          val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
-          uiHandler.postDelayed({
-              try {
-                  val bashShareModule = context.getNativeModule(BashShareModule::class.java)
-                  
-                  // Timestamp log before emitting
-                  android.util.Log.e("BashChatTest", ">>> About to notifyShareReceived at " + System.currentTimeMillis())
-
-                  bashShareModule?.notifyShareReceived(json)
-                  android.util.Log.e("BashChatTest", ">>> Emitted to JS (UI, delayed): $json")
-
-                  // Clear queue after successful emit
-                  pendingShareIntent = null
-                  pendingShareStatic = null
-              } catch (e: Exception) {
-                  android.util.Log.e("BashChatTest", "!!! Failed to emit to JS: ${e.message}", e)
-                  // Keep intent queued if emit fails
-                  pendingShareIntent = intent
-                  pendingShareStatic = intent
-              }
-          }, 5000) // 5 second delay
-      } else {
-          android.util.Log.e("BashChatTest", ">>> ReactContext not active, queuing intent")
-          pendingShareIntent = intent
-          pendingShareStatic = intent
-      }
+      
+      // ❌ Do not call notifyShareReceived here
+      // ✅ JS will call consumePendingShare() to fetch it
+      pendingShareIntent = intent
+      pendingShareStatic = intent
     }
 
     // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---

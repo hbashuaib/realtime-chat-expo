@@ -8,28 +8,31 @@ import { useFonts } from "expo-font";
 import { Provider as PaperProvider } from "react-native-paper";
 import { MenuProvider } from "react-native-popup-menu";
 
-import InboundShareBridge from "../src/bridges/InboundShareBridge";
+import InboundShareBridge, { DebugShareListener } from "../src/bridges/InboundShareBridge";
 import "@/src/core/fontawesome";
 import useGlobal from "@/src/core/global";
 import { ColorScheme, theme } from "@/src/core/theme";
 
+import { DeviceEventEmitter} from "react-native";
 import BashShareModule from "bash-share-module";
 
-
-console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
+console.log(
+  "[Debug] BashShareModule keys:",
+  BashShareModule ? Object.keys(BashShareModule) : []
+);
 
 export default function RootLayout() {
-  const colorScheme = (useGlobal((s) => s.themeMode) || "light") as ColorScheme;
-  const activeFriend = useGlobal((s) => s.activeFriend);
-  const activeConnectionId = useGlobal((s) => s.activeConnectionId);
+  const colorScheme = (useGlobal((s: any) => s.themeMode) || "light") as ColorScheme;
+  const activeFriend = useGlobal((s: any) => s.activeFriend);
+  const activeConnectionId = useGlobal((s: any) => s.activeConnectionId);
 
   const [fontsLoaded] = useFonts({
     "LeckerliOne-Regular": require("@/src/assets/fonts/LeckerliOne-Regular.ttf"),
     "MontserratExtraBold": require("@/src/assets/fonts/Montserrat-ExtraBold.ttf"),
   });
 
-  const initialized = useGlobal((state) => state.initialized);
-  const init = useGlobal((state) => state.init);
+  const initialized = useGlobal((state: any) => state.initialized);
+  const init = useGlobal((state: any) => state.init);
 
   useEffect(() => {
     init();
@@ -43,7 +46,7 @@ export default function RootLayout() {
       );
     } else {
       console.warn("[Debug] BashShareModule.ping not available");
-    }
+    } 
   }, []);
 
   const currentTheme = theme[colorScheme];  
@@ -88,11 +91,37 @@ export default function RootLayout() {
     setQueuedPayload(null);
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
  
+  useEffect(() => {
+    if (BashShareModule?.consumePendingShare) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        BashShareModule.consumePendingShare()
+          .then((res: string | null) => {
+            console.log("[RootLayout] Early consumePendingShare result:", res);
+            if (res) {
+              try {
+                const parsed = JSON.parse(res);
+                handleInboundShare(parsed);
+                clearInterval(interval); // stop once we got something
+              } catch {
+                handleInboundShare({ kind: "text", text: String(res) });
+                clearInterval(interval);
+              }
+            }
+          })
+          .catch((err: any) => console.error("[RootLayout] consumePendingShare error:", err));
+
+        attempts++;
+        if (attempts > 5) clearInterval(interval); // stop after ~5 seconds
+      }, 1000); // poll every 1s
+    }
+  }, []);
 
   return (
     <>
       {console.log("[RootLayout] Rendering InboundShareBridge")}
       <InboundShareBridge onShare={handleInboundShare} />
+      <DebugShareListener />
       {(!initialized || !fontsLoaded) ? null : (
         <MenuProvider>
           <PaperProvider theme={currentTheme}>

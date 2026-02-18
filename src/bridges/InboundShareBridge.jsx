@@ -4,7 +4,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { NativeEventEmitter, NativeModules } from "react-native";
+import { DeviceEventEmitter, NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
@@ -71,50 +71,24 @@ export default function InboundShareBridge({ onShare }) {
   };
 
   useEffect(() => {
-    const BashShareModule = NativeModules.BashShareModule;
-    const emitter = new NativeEventEmitter(BashShareModule);
-
     console.log("[Inbound Share] Bridge mounted");
-    console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
-    console.log("[Inbound Share Debug] NativeModules keys:", Object.keys(NativeModules));
 
-    // 🔍 Test direct method calls
-    if (BashShareModule?.ping) {
-      BashShareModule.ping().then(res => {
-        console.log("[Debug] Ping result:", res);
-      }).catch(err => console.error("[Debug] Ping error:", err));
-    }
-
-    if (BashShareModule?.consumePendingShare) {
-      BashShareModule.consumePendingShare()
-        .then(res => console.log("[Debug] consumePendingShare result:", res))
-        .catch(err => console.error("[Debug] consumePendingShare error:", err));
-    }
-
-    // if (BashShareModule?.notifyShareReceived) {
-    //   BashShareModule.notifyShareReceived(JSON.stringify({ kind: "text", text: "test payload" }));
-    //   console.log("[Debug] notifyShareReceived called with test payload");
-    // }
-
-    // Subscribe to native event
-    const subscription = emitter.addListener("onShareReceived", async (raw) => {
-      console.log("[Inbound Share] NativeEventEmitter fired with raw:", raw);
+    // Subscribe directly to DeviceEventEmitter
+    const subscription = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
+      console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw);
       await consume(raw);
     });
 
-    console.log("[Inbound Share] Listener mounted at", Date.now());
+    console.log("[Inbound Share] Listener attached at", Date.now());
 
-    // Optional: one initial poll
-    if (BashShareModule?.consumePendingShare) {
-      BashShareModule.consumePendingShare()
-        .then((res) => {
-          console.log("[Inbound Share] Initial consumePendingShare result:", res);
-          if (res) consume(res);
-        })
-        .catch((err) => console.error("[Inbound Share] consumePendingShare error:", err));
+    // Optional: test direct method calls
+    const { BashShareModule } = NativeModules;
+    if (BashShareModule?.ping) {
+      BashShareModule.ping()
+        .then(res => console.log("[Debug] Ping result:", res))
+        .catch(err => console.error("[Debug] Ping error:", err));
     }
 
-    // Cleanup
     return () => {
       subscription.remove();
     };
@@ -122,6 +96,19 @@ export default function InboundShareBridge({ onShare }) {
 
   return null;
 }
+
+// ✅ Minimal test listener component
+export function DebugShareListener() {
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("onShareReceived", (raw) => {
+      console.log("[DebugShareListener] Got event:", raw, typeof raw);
+    });
+    return () => sub.remove();
+  }, []);
+
+  return null;
+}
+
 
 // --- Helpers ---
 function inferMimeFromUri(uri) {

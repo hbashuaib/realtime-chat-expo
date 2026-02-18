@@ -1,5 +1,6 @@
 // src/core/global.js
 import { create } from 'zustand'
+// import { GlobalState } from "./global"; // import the interface
 import api, { ADDRESS } from './api'
 import secure from './secure'
 import utils from './utils'
