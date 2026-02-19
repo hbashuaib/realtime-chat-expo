@@ -287,18 +287,9 @@ import com.anonymous.realtimechatexpo.BuildConfig
       // Always flush BashShareQueue into JS
       val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
       if (!pendingJson.isNullOrEmpty()) {
-          val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
-          uiHandler.postDelayed({
-              val module = readyContext.getNativeModule(BashShareModule::class.java)
-              if (readyContext.hasActiveCatalystInstance() && module != null) {
-                  android.util.Log.e("BashChatTest", ">>> Flushing pending JSON: $pendingJson")
-                  module.notifyShareReceived(pendingJson)
-                  com.anonymous.realtimechatexpo.BashShareQueue.consume()
-              } else {
-                  android.util.Log.e("BashChatTest", "!!! ReactContext not active, re-queueing")
-                  com.anonymous.realtimechatexpo.BashShareQueue.setPending(pendingJson)
-              }
-          }, 5000)
+          android.util.Log.e("BashChatTest", ">>> Holding BashShareQueue until JS consumes (no auto-flush)")
+          // ❌ Do not flush or consume here
+          // ✅ Leave it queued for JS to fetch via consumePendingShare()
       }
       
       manager.removeReactInstanceEventListener(this)

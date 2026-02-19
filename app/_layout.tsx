@@ -59,16 +59,37 @@ export default function RootLayout() {
 
   type InboundPayload = SharePayload;
 
+  const setInboundShare = useGlobal((s: any) => s.setInboundShare);
+  const clearInboundShare = useGlobal((s: any) => s.clearInboundShare);
+
   const [queuedPayload, setQueuedPayload] = useState<InboundPayload | null>(null);
+
+  const [lastPayloadKey, setLastPayloadKey] = useState<string | null>(null);
 
   const handleInboundShare = useCallback(
     (payload: InboundPayload | null) => {
-      console.log("[Inbound Share] Received:", payload);
       if (!payload) return;
+
+      const key = JSON.stringify(payload);
+      if (key === lastPayloadKey) {
+        console.log("[Inbound Share] Duplicate ignored");
+        return;
+      }
+
+      console.log("[Inbound Share] Received:", payload);
+      setLastPayloadKey(key);
       setQueuedPayload(payload);
+      setInboundShare(payload);
     },
-    []
+    [lastPayloadKey, setInboundShare]
   );
+
+  // ✅ Clear stale payloads on app restart
+  useEffect(() => {
+    clearInboundShare();
+    setQueuedPayload(null);
+    setLastPayloadKey(null);
+  }, []);
 
   useEffect(() => {
     if (!queuedPayload) return;
@@ -92,30 +113,64 @@ export default function RootLayout() {
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
  
   useEffect(() => {
-    if (BashShareModule?.consumePendingShare) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        BashShareModule.consumePendingShare()
-          .then((res: string | null) => {
-            console.log("[RootLayout] Early consumePendingShare result:", res);
-            if (res) {
-              try {
-                const parsed = JSON.parse(res);
-                handleInboundShare(parsed);
-                clearInterval(interval); // stop once we got something
-              } catch {
-                handleInboundShare({ kind: "text", text: String(res) });
-                clearInterval(interval);
-              }
-            }
-          })
-          .catch((err: any) => console.error("[RootLayout] consumePendingShare error:", err));
+    if (BashShareModule?.peekPendingShare && BashShareModule?.consumePendingShare) {
+      const interval = setInterval(async () => {
+        try {
+          const peek = await BashShareModule.peekPendingShare();
+          if (!peek) return;
 
-        attempts++;
-        if (attempts > 5) clearInterval(interval); // stop after ~5 seconds
-      }, 1000); // poll every 1s
+          const res = await BashShareModule.consumePendingShare();
+          if (!res) return;
+
+          let parsed: InboundPayload;
+          try {
+            parsed = JSON.parse(res);
+          } catch {
+            parsed = { kind: "text", text: String(res) };
+          }
+
+          const key = JSON.stringify(parsed);
+
+          if (key !== lastPayloadKey) {
+            handleInboundShare(parsed);
+            setLastPayloadKey(key);
+          } else {
+            console.log("[RootLayout] Duplicate payload ignored");
+          }
+
+          // ✅ stop polling immediately after one payload
+          clearInterval(interval);
+        } catch (err) {
+          console.error("[RootLayout] share polling error:", err);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
     }
-  }, []);
+  }, [handleInboundShare, lastPayloadKey]);
+
+  // ✅ Reset lastPayloadKey after routing so next share is processed
+  useEffect(() => {
+    if (!queuedPayload) return;
+    if (!initialized || !fontsLoaded) return;
+
+    if (!activeFriend || !activeConnectionId) {
+      router.replace("/(tabs)/Friends");
+      return;
+    }
+
+    router.replace({
+      pathname: "/Message",
+      params: {
+        id: String(activeConnectionId),
+        friend: JSON.stringify(activeFriend),
+        inbound: "1",
+      },
+    });
+
+    setQueuedPayload(null);
+    setLastPayloadKey(null); // <--- reset here
+  }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
 
   return (
     <>

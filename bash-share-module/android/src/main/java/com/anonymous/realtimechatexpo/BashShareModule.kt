@@ -34,12 +34,13 @@ class BashShareModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun consumePendingShare(promise: Promise) {
-    try {
-      val v = BashShareQueue.consume()
-      promise.resolve(v)
-    } catch (e: Exception) {
-      promise.reject("ERR_CONSUME_PENDING", e)
-    }
+      try {
+          val v = BashShareQueue.consume()
+          android.util.Log.e("BashChatTest", ">>> consumePendingShare called, returning: $v")
+          promise.resolve(v)
+      } catch (e: Exception) {
+          promise.reject("ERR_CONSUME_PENDING", e)
+      }
   }
 
   // Explicitly expose notifyShareReceived to JS
@@ -50,5 +51,15 @@ class BashShareModule(reactContext: ReactApplicationContext) :
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("onShareReceived", json)
     }
+  }
+
+  @ReactMethod
+  fun peekPendingShare(promise: Promise) {
+      try {
+          val result = BashShareQueue.peek()
+          promise.resolve(result)
+      } catch (e: Exception) {
+          promise.reject("ERR_PEEK_PENDING", e)
+      }
   }
 }
