@@ -216,120 +216,137 @@ class MainActivity : ReactActivity() {
     pendingShareStatic = intent
   }
 
-  private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
-    val action = intent.action
-    val type = intent.type ?: ""
-    android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
+  // private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+  //   val action = intent.action
+  //   val type = intent.type ?: ""
+  //   android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
         
-    // Helper to escape JSON strings
-    fun normalizeText(raw: String): String {
-        // Trim whitespace and common quote characters to avoid "\"text\"" payloads
-        return raw.trim().trim('"').trim('“').trim('”').trim('\'')
-    }    
+  //   // Helper to escape JSON strings
+  //   fun normalizeText(raw: String): String {
+  //       // Trim whitespace and common quote characters to avoid "\"text\"" payloads
+  //       return raw.trim().trim('"').trim('“').trim('”').trim('\'')
+  //   }    
 
-    // Latest Emit JSON to JS module (with queue clearing on success)
-    fun emitJson(json: String) {
-      android.util.Log.e("BashChatTest", ">>> emitJson called with: $json")
+  //   // Latest Emit JSON to JS module (with queue clearing on success)
+  //   fun emitJson(json: String) {
+  //     android.util.Log.e("BashChatTest", ">>> emitJson called with: $json")
 
-      // Always queue latest via reflection
-      try {
-        val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
-        val method = cls.getMethod("setPending", String::class.java)
-        method.invoke(null, json)
-        android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
-      } catch (e: Exception) {
-        android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
-      }
+  //     // Always queue latest via reflection
+  //     try {
+  //       val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
+  //       val method = cls.getMethod("setPending", String::class.java)
+  //       method.invoke(null, json)
+  //       android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
+  //     } catch (e: Exception) {
+  //       android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
+  //     }
       
-      // ❌ Do not call notifyShareReceived here
-      // ✅ JS will call consumePendingShare() to fetch it
-      pendingShareIntent = intent
-      pendingShareStatic = intent
-    }
+  //     // ❌ Do not call notifyShareReceived here
+  //     // ✅ JS will call consumePendingShare() to fetch it
+  //     pendingShareIntent = intent
+  //     pendingShareStatic = intent
+  //   }
 
-    // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---
-    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-    if (!sharedText.isNullOrEmpty()) {
-        val cleaned = normalizeText(sharedText ?: "")
-        val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-        android.util.Log.e("BashChatTest", ">>> Built text JSON (type-agnostic): $json")
-        emitJson(json)
-        android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
-        return
-    }
+  //   // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---
+  //   val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+  //   if (!sharedText.isNullOrEmpty()) {
+  //       val cleaned = normalizeText(sharedText ?: "")
+  //       val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+  //       android.util.Log.e("BashChatTest", ">>> Built text JSON (type-agnostic): $json")
+  //       emitJson(json)
+  //       android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
+  //       return
+  //   }
 
-    // --- FIX #2: Relax action gating to allow SEND_MULTIPLE and VIEW ---
-    val isSend = action == Intent.ACTION_SEND
-    val isSendMultiple = action == Intent.ACTION_SEND_MULTIPLE
-    val isView = action == Intent.ACTION_VIEW
+  //   // --- FIX #2: Relax action gating to allow SEND_MULTIPLE and VIEW ---
+  //   val isSend = action == Intent.ACTION_SEND
+  //   val isSendMultiple = action == Intent.ACTION_SEND_MULTIPLE
+  //   val isView = action == Intent.ACTION_VIEW
 
-    if (!isSend && !isSendMultiple && !isView) {
-        android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
-        return
-    }    
+  //   if (!isSend && !isSendMultiple && !isView) {
+  //       android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
+  //       return
+  //   }    
 
-    // TEXT via type (secondary path for clipData text)
-    if (type.startsWith("text/")) {
-        val clip = intent.clipData
-        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-        if (!clipText.isNullOrEmpty()) {
-            val cleaned = normalizeText(clipText?.toString() ?: "")
-            val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-            android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
-            emitJson(json)
-            android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
-            return
-        }
-    }
+  //   // TEXT via type (secondary path for clipData text)
+  //   if (type.startsWith("text/")) {
+  //       val clip = intent.clipData
+  //       val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+  //       if (!clipText.isNullOrEmpty()) {
+  //           val cleaned = normalizeText(clipText?.toString() ?: "")
+  //           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+  //           android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
+  //           emitJson(json)
+  //           android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
+  //           return
+  //       }
+  //   }
 
-    // STREAMS: image/audio/video/pdf
-    val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-        ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
+  //   // STREAMS: image/audio/video/pdf
+  //   val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+  //       ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
 
-    if (streamUri != null) {
-      val resolver = applicationContext.contentResolver
-      val mime = resolver.getType(streamUri) ?: type
-      val base64 = readUriToBase64(resolver, streamUri)
-      val filename = guessFilename(resolver, streamUri)
+  //   if (streamUri != null) {
+  //     val resolver = applicationContext.contentResolver
+  //     val mime = resolver.getType(streamUri) ?: type
+  //     val base64 = readUriToBase64(resolver, streamUri)
+  //     val filename = guessFilename(resolver, streamUri)
 
-      val json = when {
-          mime.startsWith("image/") ->
-              """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-          mime.startsWith("video/") ->
-              """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
-          mime.startsWith("audio/") ->
-              """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-          mime == "application/pdf" ->
-              """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
-          else ->
-              """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
+  //     val json = when {
+  //         mime.startsWith("image/") ->
+  //             """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+  //         mime.startsWith("video/") ->
+  //             """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
+  //         mime.startsWith("audio/") ->
+  //             """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+  //         mime == "application/pdf" ->
+  //             """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+  //         else ->
+  //             """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
+  //     }
+
+  //     android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
+  //     emitJson(json)    
+  //     android.util.Log.e("BashChatTest", ">>> Called emitJson with stream payload")    
+  //     return
+  //   }
+
+  //   // Fallbacks
+  //   val clip = intent.clipData
+  //   val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+  //   val anyText = item?.text
+  //   val anyUri = item?.uri
+  //   if (!anyText.isNullOrEmpty()) {
+  //     val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
+  //     val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+  //     android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
+  //     emitJson(json)
+  //     return
+  //   }
+  //   if (anyUri != null) {
+  //     val mime = applicationContext.contentResolver.getType(anyUri) ?: type
+  //     val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
+  //     android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
+  //     emitJson(json)
+  //     return
+  //   }
+  // }
+
+  private fun forwardIntentToJS(context: ReactContext, intent: Intent?) {
+      android.util.Log.e("BashChatTest", ">>> forwardIntentToJS called; flushing queue with peek")
+
+      try {
+          val pending = BashShareQueue.peek()
+          if (pending != null) {
+              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found pending: $pending")
+              val module = context.getNativeModule(BashShareModule::class.java)
+              module?.notifyShareReceived(pending)
+          } else {
+              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found no pending payload")
+          }
+      } catch (e: Exception) {
+          android.util.Log.e("BashChatTest", "!!! Exception in forwardIntentToJS: ${e.message}", e)
       }
-
-      android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
-      emitJson(json)    
-      android.util.Log.e("BashChatTest", ">>> Called emitJson with stream payload")    
-      return
-    }
-
-    // Fallbacks
-    val clip = intent.clipData
-    val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
-    val anyText = item?.text
-    val anyUri = item?.uri
-    if (!anyText.isNullOrEmpty()) {
-      val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
-      val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
-      android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
-      emitJson(json)
-      return
-    }
-    if (anyUri != null) {
-      val mime = applicationContext.contentResolver.getType(anyUri) ?: type
-      val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
-      android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
-      emitJson(json)
-      return
-    }
   }
 
   // Helper to escape JSON strings

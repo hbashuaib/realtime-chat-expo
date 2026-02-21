@@ -669,43 +669,80 @@ export default function MessageScreen() {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // Effect 1: initial check
+  // // Effect 1: initial check
+  // useEffect(() => {
+  //   if (fromShare !== "1") return;
+  //   if (!connectionId) return;
+  //   if (!inboundShare) return;
+
+  //   if (!socketReady) {
+  //     console.log("[Message] Socket not ready, will retry when ready...");
+  //     return; // ✅ don’t clear inboundShare yet
+  //   }
+
+  //   console.log("[Message] Consuming inbound share immediately:", inboundShare);
+  //   if (inboundShare.kind === "text") {
+  //     const text = (inboundShare.text || "").trim();
+  //     if (text.length > 0) messageSend(connectionId, text);
+  //   } else {
+  //     messageSend(connectionId, "", inboundShare.payload);
+  //   }
+  //   clearInboundShare();
+  // }, [fromShare, connectionId, inboundShare]);
+
+  // // Effect 2: retry once socketReady flips true
+  // useEffect(() => {
+  //   if (fromShare !== "1") return;
+  //   if (!connectionId) return;
+  //   if (!inboundShare) return;
+  //   if (!socketReady) return;
+
+  //   console.log("[Message] Retrying inbound share after socketReady:", inboundShare);
+  //   if (inboundShare.kind === "text") {
+  //     const text = (inboundShare.text || "").trim();
+  //     if (text.length > 0) messageSend(connectionId, text);
+  //   } else {
+  //     messageSend(connectionId, "", inboundShare.payload);
+  //   }
+  //   clearInboundShare();
+  // }, [socketReady]);
+
+  // Combined Effect: single effect that checks all conditions and retries when socketReady changes
   useEffect(() => {
-    if (fromShare !== "1") return;
-    if (!connectionId) return;
-    if (!inboundShare) return;
+    if (fromShare !== "1" || !connectionId || !socketReady) return;
 
-    if (!socketReady) {
-      console.log("[Message] Socket not ready, will retry when ready...");
-      return; // ✅ don’t clear inboundShare yet
-    }
+    (async () => {
+      try {
+        const raw = await NativeModules.BashShareModule.consumePendingShare();
+        if (!raw) {
+          console.log("[Message] No pending share to consume");
+          return;
+        }
 
-    console.log("[Message] Consuming inbound share immediately:", inboundShare);
-    if (inboundShare.kind === "text") {
-      const text = (inboundShare.text || "").trim();
-      if (text.length > 0) messageSend(connectionId, text);
-    } else {
-      messageSend(connectionId, "", inboundShare.payload);
-    }
-    clearInboundShare();
-  }, [fromShare, connectionId, inboundShare]);
+        let inbound;
+        try {
+          inbound = JSON.parse(raw);
+        } catch {
+          inbound = { kind: "text", text: String(raw) };
+        }
 
-  // Effect 2: retry once socketReady flips true
-  useEffect(() => {
-    if (fromShare !== "1") return;
-    if (!connectionId) return;
-    if (!inboundShare) return;
-    if (!socketReady) return;
+        console.log("[Message] Consuming inbound share:", inbound);
 
-    console.log("[Message] Retrying inbound share after socketReady:", inboundShare);
-    if (inboundShare.kind === "text") {
-      const text = (inboundShare.text || "").trim();
-      if (text.length > 0) messageSend(connectionId, text);
-    } else {
-      messageSend(connectionId, "", inboundShare.payload);
-    }
-    clearInboundShare();
-  }, [socketReady]);
+        if (inbound.kind === "text") {
+          const text = (inbound.text || "").trim();
+          if (text.length > 0) {
+            messageSend(connectionId, text);
+          }
+        } else {
+          messageSend(connectionId, "", inbound.payload);
+        }
+
+        clearInboundShare(); // ✅ clear after sending
+      } catch (e) {
+        console.error("[Message] Failed to consume share:", e);
+      }
+    })();
+  }, [fromShare, connectionId, socketReady]);
 
   const keyboardOffset = Platform.OS === "ios" ? 60 : statusBarHeight + 30;
   const emojiPickerHeight = 300;

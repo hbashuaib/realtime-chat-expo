@@ -438,120 +438,137 @@ import com.anonymous.realtimechatexpo.BuildConfig
     pendingShareStatic = intent
   }
 
-  private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
-    val action = intent.action
-    val type = intent.type ?: ""
-    android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
+  // private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+  //   val action = intent.action
+  //   val type = intent.type ?: ""
+  //   android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
         
-    // Helper to escape JSON strings
-    fun normalizeText(raw: String): String {
-        // Trim whitespace and common quote characters to avoid "\"text\"" payloads
-        return raw.trim().trim('"').trim('“').trim('”').trim('\'')
-    }    
+  //   // Helper to escape JSON strings
+  //   fun normalizeText(raw: String): String {
+  //       // Trim whitespace and common quote characters to avoid "\"text\"" payloads
+  //       return raw.trim().trim('"').trim('“').trim('”').trim('\'')
+  //   }    
 
-    // Latest Emit JSON to JS module (with queue clearing on success)
-    fun emitJson(json: String) {
-      android.util.Log.e("BashChatTest", ">>> emitJson called with: $json")
+  //   // Latest Emit JSON to JS module (with queue clearing on success)
+  //   fun emitJson(json: String) {
+  //     android.util.Log.e("BashChatTest", ">>> emitJson called with: $json")
 
-      // Always queue latest via reflection
-      try {
-        val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
-        val method = cls.getMethod("setPending", String::class.java)
-        method.invoke(null, json)
-        android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
-      } catch (e: Exception) {
-        android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${"${"}e.message${"}"}", e)
-      }
+  //     // Always queue latest via reflection
+  //     try {
+  //       val cls = Class.forName("com.anonymous.realtimechatexpo.BashShareQueue")
+  //       val method = cls.getMethod("setPending", String::class.java)
+  //       method.invoke(null, json)
+  //       android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
+  //     } catch (e: Exception) {
+  //       android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${"${"}e.message${"}"}", e)
+  //     }
       
-      // ❌ Do not call notifyShareReceived here
-      // ✅ JS will call consumePendingShare() to fetch it
-      pendingShareIntent = intent
-      pendingShareStatic = intent
-    }
+  //     // ❌ Do not call notifyShareReceived here
+  //     // ✅ JS will call consumePendingShare() to fetch it
+  //     pendingShareIntent = intent
+  //     pendingShareStatic = intent
+  //   }
 
-    // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---
-    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-    if (!sharedText.isNullOrEmpty()) {
-        val cleaned = normalizeText(sharedText ?: "")
-        val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-        android.util.Log.e("BashChatTest", ">>> Built text JSON (type-agnostic): $json")
-        emitJson(json)
-        android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
-        return
-    }
+  //   // --- FIX #1: Emit text whenever EXTRA_TEXT exists (type-agnostic) ---
+  //   val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+  //   if (!sharedText.isNullOrEmpty()) {
+  //       val cleaned = normalizeText(sharedText ?: "")
+  //       val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+  //       android.util.Log.e("BashChatTest", ">>> Built text JSON (type-agnostic): $json")
+  //       emitJson(json)
+  //       android.util.Log.e("BashChatTest", ">>> Called emitJson with text payload")
+  //       return
+  //   }
 
-    // --- FIX #2: Relax action gating to allow SEND_MULTIPLE and VIEW ---
-    val isSend = action == Intent.ACTION_SEND
-    val isSendMultiple = action == Intent.ACTION_SEND_MULTIPLE
-    val isView = action == Intent.ACTION_VIEW
+  //   // --- FIX #2: Relax action gating to allow SEND_MULTIPLE and VIEW ---
+  //   val isSend = action == Intent.ACTION_SEND
+  //   val isSendMultiple = action == Intent.ACTION_SEND_MULTIPLE
+  //   val isView = action == Intent.ACTION_VIEW
 
-    if (!isSend && !isSendMultiple && !isView) {
-        android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
-        return
-    }    
+  //   if (!isSend && !isSendMultiple && !isView) {
+  //       android.util.Log.e("BashChatTest", ">>> Unsupported action: $action")
+  //       return
+  //   }    
 
-    // TEXT via type (secondary path for clipData text)
-    if (type.startsWith("text/")) {
-        val clip = intent.clipData
-        val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-        if (!clipText.isNullOrEmpty()) {
-            val cleaned = normalizeText(clipText?.toString() ?: "")
-            val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-            android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
-            emitJson(json)
-            android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
-            return
-        }
-    }
+  //   // TEXT via type (secondary path for clipData text)
+  //   if (type.startsWith("text/")) {
+  //       val clip = intent.clipData
+  //       val clipText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+  //       if (!clipText.isNullOrEmpty()) {
+  //           val cleaned = normalizeText(clipText?.toString() ?: "")
+  //           val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+  //           android.util.Log.e("BashChatTest", ">>> Built text JSON (clip): $json")
+  //           emitJson(json)
+  //           android.util.Log.e("BashChatTest", ">>> Called emitJson with (clip) text payload")
+  //           return
+  //       }
+  //   }
 
-    // STREAMS: image/audio/video/pdf
-    val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-        ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
+  //   // STREAMS: image/audio/video/pdf
+  //   val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+  //       ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
 
-    if (streamUri != null) {
-      val resolver = applicationContext.contentResolver
-      val mime = resolver.getType(streamUri) ?: type
-      val base64 = readUriToBase64(resolver, streamUri)
-      val filename = guessFilename(resolver, streamUri)
+  //   if (streamUri != null) {
+  //     val resolver = applicationContext.contentResolver
+  //     val mime = resolver.getType(streamUri) ?: type
+  //     val base64 = readUriToBase64(resolver, streamUri)
+  //     val filename = guessFilename(resolver, streamUri)
 
-      val json = when {
-          mime.startsWith("image/") ->
-              """{"kind":"image","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
-          mime.startsWith("video/") ->
-              """{"kind":"video","payload":{"video":"$base64","video_filename":${"${"}escapeJson(filename)${"}"}}}"""
-          mime.startsWith("audio/") ->
-              """{"kind":"voice","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
-          mime == "application/pdf" ->
-              """{"kind":"document","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
-          else ->
-              """{"kind":"uri","uri":${"${"}escapeJson(streamUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
+  //     val json = when {
+  //         mime.startsWith("image/") ->
+  //             """{"kind":"image","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
+  //         mime.startsWith("video/") ->
+  //             """{"kind":"video","payload":{"video":"$base64","video_filename":${"${"}escapeJson(filename)${"}"}}}"""
+  //         mime.startsWith("audio/") ->
+  //             """{"kind":"voice","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
+  //         mime == "application/pdf" ->
+  //             """{"kind":"document","payload":{"base64":"$base64","filename":${"${"}escapeJson(filename)${"}"}}}"""
+  //         else ->
+  //             """{"kind":"uri","uri":${"${"}escapeJson(streamUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
+  //     }
+
+  //     android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
+  //     emitJson(json)    
+  //     android.util.Log.e("BashChatTest", ">>> Called emitJson with stream payload")    
+  //     return
+  //   }
+
+  //   // Fallbacks
+  //   val clip = intent.clipData
+  //   val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+  //   val anyText = item?.text
+  //   val anyUri = item?.uri
+  //   if (!anyText.isNullOrEmpty()) {
+  //     val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
+  //     val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+  //     android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
+  //     emitJson(json)
+  //     return
+  //   }
+  //   if (anyUri != null) {
+  //     val mime = applicationContext.contentResolver.getType(anyUri) ?: type
+  //     val json = """{"kind":"uri","uri":${"${"}escapeJson(anyUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
+  //     android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
+  //     emitJson(json)
+  //     return
+  //   }
+  // }
+
+  private fun forwardIntentToJS(context: ReactContext, intent: Intent?) {
+      android.util.Log.e("BashChatTest", ">>> forwardIntentToJS called; flushing queue with peek")
+
+      try {
+          val pending = BashShareQueue.peek()
+          if (pending != null) {
+              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found pending: $pending")
+              val module = context.getNativeModule(BashShareModule::class.java)
+              module?.notifyShareReceived(pending)
+          } else {
+              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found no pending payload")
+          }
+      } catch (e: Exception) {
+          android.util.Log.e("BashChatTest", "!!! Exception in forwardIntentToJS: ${"${"}e.message${"}"}", e)
       }
-
-      android.util.Log.e("BashChatTest", ">>> Built stream JSON: $json")
-      emitJson(json)    
-      android.util.Log.e("BashChatTest", ">>> Called emitJson with stream payload")    
-      return
-    }
-
-    // Fallbacks
-    val clip = intent.clipData
-    val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
-    val anyText = item?.text
-    val anyUri = item?.uri
-    if (!anyText.isNullOrEmpty()) {
-      val cleaned = normalizeText(stripUrls(anyText?.toString() ?: ""))
-      val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-      android.util.Log.e("BashChatTest", ">>> Built fallback text JSON: $json")
-      emitJson(json)
-      return
-    }
-    if (anyUri != null) {
-      val mime = applicationContext.contentResolver.getType(anyUri) ?: type
-      val json = """{"kind":"uri","uri":${"${"}escapeJson(anyUri.toString())${"}"},"mime":${"${"}escapeJson(mime)${"}"}}"""
-      android.util.Log.e("BashChatTest", ">>> Built fallback uri JSON: $json")
-      emitJson(json)
-      return
-    }
   }
 
   // Helper to escape JSON strings
@@ -708,66 +725,62 @@ function withShareMenuActivityJava(config) {
         }
 
         private void handleIncomingIntent(Intent incoming) {
-          if (incoming == null) {
-            Log.e("BashChatTest", "!!! Incoming intent is null");
-            return;
-          }
+            if (incoming == null) {
+                Log.e("BashChatTest", "!!! Incoming intent is null");
+                return;
+            }
 
-          Log.e("BashChatTest", ">>> Incoming action=" + incoming.getAction() + ", type=" + incoming.getType());
+            Log.e("BashChatTest", ">>> Incoming action=" + incoming.getAction() + ", type=" + incoming.getType());
 
-          if (Intent.ACTION_MAIN.equals(incoming.getAction())) {
-            Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent");
-            return;
-          }
+            if (Intent.ACTION_MAIN.equals(incoming.getAction())) {
+                Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent");
+                return;
+            }
 
-          Intent forward = new Intent(this, MainActivity.class);
-          forward.setAction(incoming.getAction());
-          forward.setType(incoming.getType());
+            try {
+                String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
+                Uri stream = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
+                String mime = incoming.getType();
 
-          try {
-            forward.putExtras(incoming);
-          } catch (Exception e) {
-            Log.e("BashChatTest", "!!! Failed to putExtras: " + e.getMessage(), e);
-          }
+                if (text != null) {
+                    String json = "{\\\"kind\\\":\\\"text\\\",\\\"payload\\\":{\\\"text\\\":\" + escapeJson(text) + "}}";
+                    BashShareQueue.setPending(json);
+                    Log.e("BashChatTest", ">>> Queued text payload: " + text);
+                } else if (stream != null) {
+                    String json = "{\\\"kind\\\":\\\"image\\\",\\\"payload\\\":{\\\"uri\\\":\" + escapeJson(stream.toString()) + ",\\\"mime\\\":\" + escapeJson(mime) + "}}";
+                    BashShareQueue.setPending(json);
+                    Log.e("BashChatTest", ">>> Queued image payload: " + stream);
+                }
+            } catch (Exception e) {
+                Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);
+            }            
 
-          // Defensive mirroring of common extras
-          String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
-          if (text != null) {
-            forward.putExtra(Intent.EXTRA_TEXT, text);
-            Log.e("BashChatTest", ">>> Mirrored EXTRA_TEXT: " + text);
-          }
+            Intent forward = new Intent(this, MainActivity.class);
+            forward.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-          Uri stream = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
-          if (stream != null) {
-            forward.putExtra(Intent.EXTRA_STREAM, stream);
-            Log.e("BashChatTest", ">>> Mirrored EXTRA_STREAM: " + stream);
-          }
+            try {
+                startActivity(forward);
+                Log.e("BashChatTest", ">>> Forwarded intent to MainActivity successfully");
+            } catch (Exception e) {
+                Log.e("BashChatTest", "!!! Exception while starting MainActivity: " + e.getMessage(), e);
+            }
 
-          ClipData clip = incoming.getClipData();
-          if (clip != null) {
-            forward.setClipData(clip);
-            Log.e("BashChatTest", ">>> ClipData count: " + clip.getItemCount());
-          }
+            finish();
+        }
 
-          forward.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
-               | Intent.FLAG_ACTIVITY_CLEAR_TOP 
-               | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-          forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-          Uri data = incoming.getData();
-          if (data != null) {
-            forward.setData(data);
-            Log.e("BashChatTest", ">>> Set data URI: " + data);
-          }
-
-          try {
-            startActivity(forward);
-            Log.e("BashChatTest", ">>> Forwarded intent to MainActivity successfully");
-          } catch (Exception e) {
-            Log.e("BashChatTest", "!!! Exception while starting MainActivity: " + e.getMessage(), e);
-          }
-
-          finish();
+        // Utility method to safely escape strings for JSON
+        private static String escapeJson(String input) {
+            if (input == null) {
+                return "\\\"\\\""; // return empty JSON string
+            }
+            String escaped = input
+                .replace("\\\\", "\\\\\\\\")   // escape backslashes
+                .replace("\\\"", "\\\\\\\"")   // escape quotes
+                .replace("\\n", "\\\\n")       // escape newlines
+                .replace("\\r", "\\\\r")       // escape carriage returns
+                .replace("\\t", "\\\\t");      // escape tabs
+            return "\\\"" + escaped + "\\\"";  // wrap in quotes for valid JSON
         }
       }
       `;
@@ -849,7 +862,7 @@ function withInboundShareBridgePatches(config) {
       js = js.replace(
         /lastKey\s*=\s*JSON\.stringify\(payload\);\s*(lastKey\s*=\s*JSON\.stringify\(payload\);\s*)+/g,
         "lastKey = JSON.stringify(payload);"
-      );
+      );      
 
       fs.writeFileSync(jsPath, js);
       console.log("Patched InboundShareBridge.jsx (normalized onShare + dedup)");

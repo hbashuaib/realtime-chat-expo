@@ -37,66 +37,62 @@ package com.anonymous.realtimechatexpo;
         }
 
         private void handleIncomingIntent(Intent incoming) {
-          if (incoming == null) {
-            Log.e("BashChatTest", "!!! Incoming intent is null");
-            return;
-          }
+            if (incoming == null) {
+                Log.e("BashChatTest", "!!! Incoming intent is null");
+                return;
+            }
 
-          Log.e("BashChatTest", ">>> Incoming action=" + incoming.getAction() + ", type=" + incoming.getType());
+            Log.e("BashChatTest", ">>> Incoming action=" + incoming.getAction() + ", type=" + incoming.getType());
 
-          if (Intent.ACTION_MAIN.equals(incoming.getAction())) {
-            Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent");
-            return;
-          }
+            if (Intent.ACTION_MAIN.equals(incoming.getAction())) {
+                Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent");
+                return;
+            }
 
-          Intent forward = new Intent(this, MainActivity.class);
-          forward.setAction(incoming.getAction());
-          forward.setType(incoming.getType());
+            try {
+                String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
+                Uri stream = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
+                String mime = incoming.getType();
 
-          try {
-            forward.putExtras(incoming);
-          } catch (Exception e) {
-            Log.e("BashChatTest", "!!! Failed to putExtras: " + e.getMessage(), e);
-          }
+                if (text != null) {
+                    String json = "{\"kind\":\"text\",\"payload\":{\"text\":" + escapeJson(text) + "}}";
+                    BashShareQueue.setPending(json);
+                    Log.e("BashChatTest", ">>> Queued text payload: " + text);
+                } else if (stream != null) {
+                    String json = "{\"kind\":\"image\",\"payload\":{\"uri\":" + escapeJson(stream.toString()) + ",\"mime\":" + escapeJson(mime) + "}}";
+                    BashShareQueue.setPending(json);
+                    Log.e("BashChatTest", ">>> Queued image payload: " + stream);
+                }
+            } catch (Exception e) {
+                Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);
+            }            
 
-          // Defensive mirroring of common extras
-          String text = incoming.getStringExtra(Intent.EXTRA_TEXT);
-          if (text != null) {
-            forward.putExtra(Intent.EXTRA_TEXT, text);
-            Log.e("BashChatTest", ">>> Mirrored EXTRA_TEXT: " + text);
-          }
+            Intent forward = new Intent(this, MainActivity.class);
+            forward.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-          Uri stream = incoming.getParcelableExtra(Intent.EXTRA_STREAM);
-          if (stream != null) {
-            forward.putExtra(Intent.EXTRA_STREAM, stream);
-            Log.e("BashChatTest", ">>> Mirrored EXTRA_STREAM: " + stream);
-          }
+            try {
+                startActivity(forward);
+                Log.e("BashChatTest", ">>> Forwarded intent to MainActivity successfully");
+            } catch (Exception e) {
+                Log.e("BashChatTest", "!!! Exception while starting MainActivity: " + e.getMessage(), e);
+            }
 
-          ClipData clip = incoming.getClipData();
-          if (clip != null) {
-            forward.setClipData(clip);
-            Log.e("BashChatTest", ">>> ClipData count: " + clip.getItemCount());
-          }
+            finish();
+        }
 
-          forward.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
-               | Intent.FLAG_ACTIVITY_CLEAR_TOP 
-               | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-          forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-          Uri data = incoming.getData();
-          if (data != null) {
-            forward.setData(data);
-            Log.e("BashChatTest", ">>> Set data URI: " + data);
-          }
-
-          try {
-            startActivity(forward);
-            Log.e("BashChatTest", ">>> Forwarded intent to MainActivity successfully");
-          } catch (Exception e) {
-            Log.e("BashChatTest", "!!! Exception while starting MainActivity: " + e.getMessage(), e);
-          }
-
-          finish();
+        // Utility method to safely escape strings for JSON
+        private static String escapeJson(String input) {
+            if (input == null) {
+                return "\"\""; // return empty JSON string
+            }
+            String escaped = input
+                .replace("\\", "\\\\")   // escape backslashes
+                .replace("\"", "\\\"")   // escape quotes
+                .replace("\n", "\\n")       // escape newlines
+                .replace("\r", "\\r")       // escape carriage returns
+                .replace("\t", "\\t");      // escape tabs
+            return "\"" + escaped + "\"";  // wrap in quotes for valid JSON
         }
       }
       

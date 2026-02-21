@@ -9,57 +9,72 @@ import com.facebook.react.bridge.Promise
 
 @ReactModule(name = "BashShareModule")
 class BashShareModule(reactContext: ReactApplicationContext) :
-  ReactContextBaseJavaModule(reactContext) {
+    ReactContextBaseJavaModule(reactContext) {
 
-  // override fun getName(): String = "BashShareModule"
-  override fun getName(): String {
-      android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: BashShareModule")
-      return "BashShareModule"
-  }
-
-
-  // Required for NativeEventEmitter
-  @ReactMethod
-  fun addListener(eventName: String) { /* no-op */ }
-
-  @ReactMethod
-  fun removeListeners(count: Int) { /* no-op */ }
-
-  // NEW: trivial test method to confirm bridge works
-  @ReactMethod
-  fun ping(promise: Promise) {
-    promise.resolve("pong from native")
-  }
-
-
-  @ReactMethod
-  fun consumePendingShare(promise: Promise) {
-      try {
-          val v = BashShareQueue.consume()
-          android.util.Log.e("BashChatTest", ">>> consumePendingShare called, returning: $v")
-          promise.resolve(v)
-      } catch (e: Exception) {
-          promise.reject("ERR_CONSUME_PENDING", e)
-      }
-  }
-
-  // Explicitly expose notifyShareReceived to JS
-  @ReactMethod
-  fun notifyShareReceived(json: String) {
-    if (reactApplicationContext.hasActiveCatalystInstance()) {
-      reactApplicationContext
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit("onShareReceived", json)
+    // override fun getName(): String = "BashShareModule"
+    override fun getName(): String {
+        android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: BashShareModule")
+        return "BashShareModule"
     }
-  }
 
-  @ReactMethod
-  fun peekPendingShare(promise: Promise) {
-      try {
-          val result = BashShareQueue.peek()
-          promise.resolve(result)
-      } catch (e: Exception) {
-          promise.reject("ERR_PEEK_PENDING", e)
-      }
-  }
+
+    // Required for NativeEventEmitter
+    @ReactMethod
+    fun addListener(eventName: String) { /* no-op */ }
+
+    @ReactMethod
+    fun removeListeners(count: Int) { /* no-op */ }
+
+    // NEW: trivial test method to confirm bridge works
+    @ReactMethod
+    fun ping(promise: Promise) {
+        promise.resolve("pong from native")
+    }
+
+
+    @ReactMethod
+    fun consumePendingShare(promise: Promise) {
+        try {
+            val v = BashShareQueue.consume()
+            android.util.Log.e("BashChatTest", ">>> consumePendingShare called, returning: $v")
+            promise.resolve(v)
+        } catch (e: Exception) {
+            promise.reject("ERR_CONSUME_PENDING", e)
+        }
+    }
+
+    // Explicitly expose notifyShareReceived to JS
+    @ReactMethod
+    fun notifyShareReceived(json: String) {
+        if (reactApplicationContext.hasActiveCatalystInstance()) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("onShareReceived", json)
+        }
+    }
+
+    @ReactMethod
+    fun peekPendingShare(promise: Promise) {
+        try {
+            val result = BashShareQueue.peek()
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERR_PEEK_PENDING", e)
+        }
+    }
+
+    @ReactMethod
+    fun flushPendingShare() {
+        try {
+            val pending = BashShareQueue.consume()
+            if (pending != null) {
+                android.util.Log.e("BashChatTest", ">>> flushPendingShare delivering: $pending")
+                notifyShareReceived(pending)
+            } else {
+                android.util.Log.e("BashChatTest", ">>> flushPendingShare found nothing")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BashChatTest", "!!! Exception in flushPendingShare: ${e.message}", e)
+        }
+    }  
 }
