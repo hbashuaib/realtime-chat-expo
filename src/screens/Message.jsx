@@ -708,41 +708,59 @@ export default function MessageScreen() {
   // }, [socketReady]);
 
   // Combined Effect: single effect that checks all conditions and retries when socketReady changes
+  // useEffect(() => {
+  //   if (fromShare !== "1" || !connectionId || !socketReady) return;
+
+  //   (async () => {
+  //     try {
+  //       const raw = await NativeModules.BashShareModule.consumePendingShare();
+  //       if (!raw) {
+  //         console.log("[Message] No pending share to consume");
+  //         return;
+  //       }
+
+  //       let inbound;
+  //       try {
+  //         inbound = JSON.parse(raw);
+  //       } catch {
+  //         inbound = { kind: "text", text: String(raw) };
+  //       }
+
+  //       console.log("[Message] Consuming inbound share:", inbound);
+
+  //       if (inbound.kind === "text") {
+  //         const text = (inbound.text || "").trim();
+  //         if (text.length > 0) {
+  //           messageSend(connectionId, text);
+  //         }
+  //       } else {
+  //         messageSend(connectionId, "", inbound.payload);
+  //       }
+
+  //       clearInboundShare(); // ✅ clear after sending
+  //     } catch (e) {
+  //       console.error("[Message] Failed to consume share:", e);
+  //     }
+  //   })();
+  // }, [fromShare, connectionId, socketReady]);
+
+  // Final Effect: listens to inboundShare changes and retries when socketReady changes, ensuring share is consumed as soon as possible
   useEffect(() => {
-    if (fromShare !== "1" || !connectionId || !socketReady) return;
+    if (fromShare !== "1" || !connectionId || !socketReady || !inboundShare) return;
 
-    (async () => {
-      try {
-        const raw = await NativeModules.BashShareModule.consumePendingShare();
-        if (!raw) {
-          console.log("[Message] No pending share to consume");
-          return;
-        }
+    console.log("[Message Inbound Share] Consuming inbound share:", inboundShare);
 
-        let inbound;
-        try {
-          inbound = JSON.parse(raw);
-        } catch {
-          inbound = { kind: "text", text: String(raw) };
-        }
-
-        console.log("[Message] Consuming inbound share:", inbound);
-
-        if (inbound.kind === "text") {
-          const text = (inbound.text || "").trim();
-          if (text.length > 0) {
-            messageSend(connectionId, text);
-          }
-        } else {
-          messageSend(connectionId, "", inbound.payload);
-        }
-
-        clearInboundShare(); // ✅ clear after sending
-      } catch (e) {
-        console.error("[Message] Failed to consume share:", e);
+    if (inboundShare.kind === "text") {
+      const text = (inboundShare.text || "").trim();
+      if (text.length > 0) {
+        messageSend(connectionId, text);
       }
-    })();
-  }, [fromShare, connectionId, socketReady]);
+    } else {
+      messageSend(connectionId, "", inboundShare.payload);
+    }
+
+    clearInboundShare(); // ✅ clear after sending
+  }, [fromShare, connectionId, socketReady, inboundShare]);
 
   const keyboardOffset = Platform.OS === "ios" ? 60 : statusBarHeight + 30;
   const emojiPickerHeight = 300;

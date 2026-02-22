@@ -73,16 +73,38 @@ export default function InboundShareBridge({ onShare }) {
   useEffect(() => {
     console.log("[Inbound Share] Bridge mounted");
 
+    let lastPayload = null;
+
     // Subscribe directly to DeviceEventEmitter
     const subscription = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
-      console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw);
-      await consume(raw);
+      console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw, typeof raw);
+      if (raw && raw !== lastPayload) {
+        lastPayload = raw;
+        await consume(raw);
+      } else {
+        console.log("[Inbound Share] Duplicate payload ignored");
+      }
     });
 
     console.log("[Inbound Share] Listener attached at", Date.now());
 
-    // Optional: test direct method calls
+    // ✅ Fallback peek in case event fired before listener attached
     const { BashShareModule } = NativeModules;
+    (async () => {
+      try {
+        const peek = await BashShareModule?.peekPendingShare?.();
+        if (peek && peek !== lastPayload) {
+          console.log("[Inbound Share] Fallback peek found:", peek);
+          lastPayload = peek;
+          await consume(peek);
+        } else {
+          console.log("[Inbound Share] No pending share at mount");
+        }
+      } catch (e) {
+        console.error("[Inbound Share] Fallback peek error:", e);
+      }
+    })();
+
     if (BashShareModule?.ping) {
       BashShareModule.ping()
         .then(res => console.log("[Debug] Ping result:", res))
@@ -108,7 +130,6 @@ export function DebugShareListener() {
 
   return null;
 }
-
 
 // --- Helpers ---
 function inferMimeFromUri(uri) {

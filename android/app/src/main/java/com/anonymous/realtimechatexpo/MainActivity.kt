@@ -50,7 +50,10 @@ class MainActivity : ReactActivity() {
       // Always flush BashShareQueue into JS
       val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
       if (!pendingJson.isNullOrEmpty()) {
-          android.util.Log.e("BashChatTest", ">>> Holding BashShareQueue until JS consumes (no auto-flush)")
+          android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
+          val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+          module?.flushPendingShare()
+
           // ❌ Do not flush or consume here
           // ✅ Leave it queued for JS to fetch via consumePendingShare()
       }
@@ -138,7 +141,10 @@ class MainActivity : ReactActivity() {
           android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
 
           if (!pendingJson.isNullOrEmpty()) {
-              android.util.Log.e("BashChatTest", ">>> Holding BashShareQueue until JS consumes")
+              android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
+              val module = context?.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+              module?.flushPendingShare()
+
               // ❌ Do not emit or consume here
               // ✅ Leave it queued for JS to fetch via consumePendingShare()
           }

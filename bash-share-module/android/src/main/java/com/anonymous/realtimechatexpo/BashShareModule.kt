@@ -6,6 +6,8 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.Arguments
+
 
 @ReactModule(name = "BashShareModule")
 class BashShareModule(reactContext: ReactApplicationContext) :
@@ -17,6 +19,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
         return "BashShareModule"
     }
 
+    // Explicitly export constants so JS sees the module
+    override fun getConstants(): MutableMap<String, Any> {
+        val constants = HashMap<String, Any>()
+        constants["MODULE_NAME"] = "BashShareModule"
+
+        // Merge with parent constants so methods remain exported
+        val parentConstants = super.getConstants()
+        if (parentConstants != null) {
+            constants.putAll(parentConstants)
+        }
+
+        return constants
+    }
 
     // Required for NativeEventEmitter
     @ReactMethod
@@ -69,12 +84,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
             val pending = BashShareQueue.consume()
             if (pending != null) {
                 android.util.Log.e("BashChatTest", ">>> flushPendingShare delivering: $pending")
-                notifyShareReceived(pending)
+                if (reactApplicationContext.hasActiveCatalystInstance()) {
+                    val emitter = reactApplicationContext
+                        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    emitter.emit("onShareReceived", pending)
+                    android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS successfully with string")
+                } else {
+                    android.util.Log.e("BashChatTest", ">>> Catalyst not active, cannot emit")
+                }
             } else {
                 android.util.Log.e("BashChatTest", ">>> flushPendingShare found nothing")
             }
         } catch (e: Exception) {
             android.util.Log.e("BashChatTest", "!!! Exception in flushPendingShare: ${e.message}", e)
         }
-    }  
+    } 
 }
