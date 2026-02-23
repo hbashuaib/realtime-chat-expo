@@ -9,6 +9,7 @@ class BashSharePackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
     val modules = mutableListOf<NativeModule>()
     modules.add(BashShareModule(reactContext))
+    android.util.Log.e("BashChatTest", ">>> BashSharePackage creating BashShareModule")
     return modules
   }
 

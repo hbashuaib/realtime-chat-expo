@@ -90,18 +90,26 @@ export default function InboundShareBridge({ onShare }) {
 
     // ✅ Fallback peek in case event fired before listener attached
     const { BashShareModule } = NativeModules;
+
+    // 🔎 Extra debug: log the whole module object
+    console.log("[Inbound Share] NativeModules.BashShareModule full:", BashShareModule);
+
+    // 🔎 Debug: log exported keys
+    console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
+    console.log("[Inbound Share] BashShareModule full:", BashShareModule);
+
     (async () => {
       try {
-        const peek = await BashShareModule?.peekPendingShare?.();
-        if (peek && peek !== lastPayload) {
-          console.log("[Inbound Share] Fallback peek found:", peek);
-          lastPayload = peek;
-          await consume(peek);
+        const pending = await BashShareModule?.consumePendingShare?.();
+        if (pending && pending !== lastPayload) {
+          console.log("[Inbound Share] Fallback consume found:", pending);
+          lastPayload = pending;
+          await consume(pending);
         } else {
           console.log("[Inbound Share] No pending share at mount");
         }
       } catch (e) {
-        console.error("[Inbound Share] Fallback peek error:", e);
+        console.error("[Inbound Share] Fallback consume error:", e);
       }
     })();
 

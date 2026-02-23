@@ -9,29 +9,20 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.Arguments
 
 
-@ReactModule(name = "BashShareModule")
 class BashShareModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
+
+    init {
+        android.util.Log.e("BashChatTest", ">>> BashShareModule instance created")
+    }
+
 
     // override fun getName(): String = "BashShareModule"
     override fun getName(): String {
         android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: BashShareModule")
         return "BashShareModule"
     }
-
-    // Explicitly export constants so JS sees the module
-    override fun getConstants(): MutableMap<String, Any> {
-        val constants = HashMap<String, Any>()
-        constants["MODULE_NAME"] = "BashShareModule"
-
-        // Merge with parent constants so methods remain exported
-        val parentConstants = super.getConstants()
-        if (parentConstants != null) {
-            constants.putAll(parentConstants)
-        }
-
-        return constants
-    }
+    
 
     // Required for NativeEventEmitter
     @ReactMethod
@@ -81,16 +72,16 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun flushPendingShare() {
         try {
-            val pending = BashShareQueue.consume()
+            val pending = BashShareQueue.peek()   // only peek, don’t consume yet
             if (pending != null) {
-                android.util.Log.e("BashChatTest", ">>> flushPendingShare delivering: $pending")
+                android.util.Log.e("BashChatTest", ">>> flushPendingShare found pending: $pending")
                 if (reactApplicationContext.hasActiveCatalystInstance()) {
                     val emitter = reactApplicationContext
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     emitter.emit("onShareReceived", pending)
-                    android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS successfully with string")
+                    android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS successfully")
                 } else {
-                    android.util.Log.e("BashChatTest", ">>> Catalyst not active, cannot emit")
+                    android.util.Log.e("BashChatTest", ">>> Catalyst not active, leaving payload queued")
                 }
             } else {
                 android.util.Log.e("BashChatTest", ">>> flushPendingShare found nothing")
@@ -98,5 +89,5 @@ class BashShareModule(reactContext: ReactApplicationContext) :
         } catch (e: Exception) {
             android.util.Log.e("BashChatTest", "!!! Exception in flushPendingShare: ${e.message}", e)
         }
-    } 
+    }
 }

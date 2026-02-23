@@ -338,20 +338,80 @@ class MainActivity : ReactActivity() {
   //   }
   // }
 
-  private fun forwardIntentToJS(context: ReactContext, intent: Intent?) {
-      android.util.Log.e("BashChatTest", ">>> forwardIntentToJS called; flushing queue with peek")
+  private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
+      val action = intent.action
+      val type = intent.type ?: ""
+      android.util.Log.e("BashChatTest", ">>> forwardIntentToJS: action=$action type=$type")
 
-      try {
-          val pending = BashShareQueue.peek()
-          if (pending != null) {
-              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found pending: $pending")
-              val module = context.getNativeModule(BashShareModule::class.java)
-              module?.notifyShareReceived(pending)
-          } else {
-              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS found no pending payload")
+      fun normalizeText(raw: String): String {
+          return raw.trim().trim('"').trim('“').trim('”').trim('\'')
+      }
+
+      fun emitJson(json: String) {
+          try {
+              BashShareQueue.setPending(json)
+              android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
+          } catch (e: Exception) {
+              android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
           }
-      } catch (e: Exception) {
-          android.util.Log.e("BashChatTest", "!!! Exception in forwardIntentToJS: ${e.message}", e)
+          pendingShareIntent = intent
+          pendingShareStatic = intent
+      }
+
+      // --- Text via EXTRA_TEXT ---
+      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+      if (!sharedText.isNullOrEmpty()) {
+          val cleaned = normalizeText(sharedText)
+          val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+          emitJson(json)
+          return
+      }
+
+      // --- Streams (image/audio/video/pdf) ---
+      val streamUri: android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+          ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
+
+      if (streamUri != null) {
+          val resolver = applicationContext.contentResolver
+          val mime = resolver.getType(streamUri) ?: type
+          val base64 = readUriToBase64(resolver, streamUri)
+          val filename = guessFilename(resolver, streamUri)
+
+          val json = when {
+              mime.startsWith("image/") ->
+                  """{"kind":"image","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+              mime.startsWith("video/") ->
+                  """{"kind":"video","payload":{"video":"$base64","video_filename":${escapeJson(filename)}}}"""
+              mime.startsWith("audio/") ->
+                  """{"kind":"voice","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+              mime == "application/pdf" ->
+                  """{"kind":"document","payload":{"base64":"$base64","filename":${escapeJson(filename)}}}"""
+              else ->
+                  """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
+          }
+
+          emitJson(json)
+          return
+      }
+
+      // --- Fallbacks ---
+      val clip = intent.clipData
+      val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+      val anyText = item?.text
+      val anyUri = item?.uri
+
+      if (!anyText.isNullOrEmpty()) {
+          val cleaned = normalizeText(stripUrls(anyText.toString()))
+          val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+          emitJson(json)
+          return
+      }
+
+      if (anyUri != null) {
+          val mime = applicationContext.contentResolver.getType(anyUri) ?: type
+          val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
+          emitJson(json)
+          return
       }
   }
 
