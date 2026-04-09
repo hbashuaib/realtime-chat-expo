@@ -6,6 +6,7 @@ export default {
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
+    runtimeVersion: "exposdk:54.0.0",
 
     // ✅ Single source of truth for deep linking
     scheme: "realtimechatexpo",
@@ -91,6 +92,6 @@ export default {
       eas: {
         projectId: "d67f534b-7c54-4654-a084-f03894ebb851",
       },
-    },
+    },    
   },
 };

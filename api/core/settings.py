@@ -30,7 +30,7 @@ ALLOWED_HOSTS = [
     'localhost', 
     '10.0.2.2', 
     '127.0.0.1',
-    '192.168.8.207',
+    '192.168.3.72',
     'bashchat.local',
 ]
 
@@ -68,8 +68,8 @@ CHANNEL_LAYERS = {
 # CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",           # Expo dev server - Web preview
-    "http://192.168.8.207:19000",       # Expo Go on physical device
-    "http://192.168.8.207:8081",        # Metro bundler
+    "http://192.168.3.72:19000",       # Expo Go on physical device
+    "http://192.168.3.72:8081",        # Metro bundler
     "https://10.0.2.2",
     "https://bashchat.local",    
 ]
