@@ -27,11 +27,11 @@ SECRET_KEY = 'django-insecure-hb7h=jspvp(_2x+kb=nirpt0wmh%3%!=8gc4xiy$*4l4l43o61
 DEBUG = True
 
 ALLOWED_HOSTS = [
+    'bashchat.local',
     'localhost', 
     '10.0.2.2', 
     '127.0.0.1',
-    '192.168.3.72',
-    'bashchat.local',
+    '192.168.3.68',    
 ]
 
 
@@ -58,7 +58,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+            "hosts": [("redis", 6379)], # Before: "hosts": [("127.0.0.1", 6379)],
         },
     },
 }
@@ -67,11 +67,18 @@ CHANNEL_LAYERS = {
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:19006",           # Expo dev server - Web preview
-    "http://192.168.3.72:19000",       # Expo Go on physical device
-    "http://192.168.3.72:8081",        # Metro bundler
-    "https://10.0.2.2",
-    "https://bashchat.local",    
+    "http://bashchat.local:19000",   # Expo dev server
+    "http://bashchat.local:8081",    # Metro bundler
+    "https://bashchat.local",        # API
+
+    "http://10.0.2.2:19000",         # Expo dev server via emulator
+    "http://10.0.2.2:8081",          # Metro bundler via emulator
+    "https://10.0.2.2",              # API via emulator
+
+    "http://localhost:19006",        # Expo web preview
+    "http://192.168.3.68:19000",     # Expo Go on physical device
+    "http://192.168.3.68:8081",      # Metro bundler on LAN
+      
 ]
 
 # Application definition

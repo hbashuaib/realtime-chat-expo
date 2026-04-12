@@ -41,6 +41,21 @@ redis:
 kill-metro:
 	taskkill /F /IM node.exe /T
 
+
+# Docker Compose Commands:
+# docker compose up
+# docker compose down
+# docker compose logs -f
+# docker compose up --build
+
+# New Metro run commands with new localhost:8081:
+# npx expo start --host lan
+# adb reverse tcp:8081 tcp:8081
+# login to Android device using: http://localhost:8081
+
+
+
+
 # 1. 	Build once with Gradle when you change native config:
 
 # cd android
@@ -747,3 +762,34 @@ kill-metro:
 #   config = withBashShareQueueFile(config);
 #   config = withBashShareNativeModule(config);
 #   config = withRegisterBashSharePackage(config);
+
+
+# withNetworkSecurityConfig.js:
+# <network-security-config>
+#   <!-- Metro + API for 10.0.2.2 -->
+#   <domain-config cleartextTrafficPermitted="true">
+#     <domain includeSubdomains="true">10.0.2.2</domain>
+#     <trust-anchors>
+#       <certificates src="system"/>
+#       <certificates src="user"/>
+#     </trust-anchors>
+#   </domain-config>
+
+#   <!-- Metro + API for 192.168.3.50 -->
+#   <domain-config cleartextTrafficPermitted="true">
+#     <domain includeSubdomains="true">192.168.3.50</domain>
+#     <trust-anchors>
+#       <certificates src="system"/>
+#       <certificates src="user"/>
+#     </trust-anchors>
+#   </domain-config>
+
+#   <!-- API only for bashchat.local -->
+#   <domain-config cleartextTrafficPermitted="false">
+#     <domain includeSubdomains="true">bashchat.local</domain>
+#     <trust-anchors>
+#       <certificates src="system"/>
+#       <certificates src="user"/>
+#     </trust-anchors>
+#   </domain-config>
+# </network-security-config>

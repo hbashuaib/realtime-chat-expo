@@ -8,6 +8,10 @@ export default {
     icon: "./assets/images/icon.png",
     runtimeVersion: "exposdk:54.0.0",
 
+    packagerOpts: {
+      hostType: "localhost"
+    },
+
     // ✅ Single source of truth for deep linking
     scheme: "realtimechatexpo",
 
@@ -17,6 +21,7 @@ export default {
     ios: {
       supportsTablet: true,
     },
+    
 
     android: {
       edgeToEdgeEnabled: true,
