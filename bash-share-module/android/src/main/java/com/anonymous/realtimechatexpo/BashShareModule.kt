@@ -8,19 +8,22 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.Arguments
 
-
+@ReactModule(name = BashShareModule.NAME)
 class BashShareModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
+
+    companion object {
+        const val NAME = "BashShareModule"
+    }
 
     init {
         android.util.Log.e("BashChatTest", ">>> BashShareModule instance created")
     }
 
-
     // override fun getName(): String = "BashShareModule"
     override fun getName(): String {
-        android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: BashShareModule")
-        return "BashShareModule"
+        android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: $NAME")
+        return NAME
     }
     
 
@@ -41,10 +44,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun consumePendingShare(promise: Promise) {
         try {
+            // Log current queue state before consuming
+            val peek = BashShareQueue.peek()
+            android.util.Log.e("BashChatTest", ">>> consumePendingShare peek before consume: $peek")
+
+            // Actually consume the pending payload
             val v = BashShareQueue.consume()
-            android.util.Log.e("BashChatTest", ">>> consumePendingShare called, returning: $v")
+
+            // Log what is being returned to JS
+            android.util.Log.e("BashChatTest", ">>> consumePendingShare returning: $v")
+
             promise.resolve(v)
         } catch (e: Exception) {
+            android.util.Log.e("BashChatTest", "!!! consumePendingShare error: ${e.message}", e)
             promise.reject("ERR_CONSUME_PENDING", e)
         }
     }

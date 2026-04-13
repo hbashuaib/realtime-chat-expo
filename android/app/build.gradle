@@ -83,7 +83,7 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
     sourceSets {
-        main { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
+        main { java.srcDirs = ['src/main/java', 'src/main/kotlin', '../bash-share-module/android/src/main/java'] }
         debug { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
         release { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
     }
@@ -160,7 +160,6 @@ android {
 }
 
 dependencies {
-    implementation project(':bash-share-module')
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"

@@ -793,3 +793,33 @@ kill-metro:
 #     </trust-anchors>
 #   </domain-config>
 # </network-security-config>
+
+# bash-share-module/package.json:
+# {
+#   "name": "bash-share-module",
+#   "version": "1.0.0",
+#   "description": "Custom native module for inbound share handling in BashChat",
+#   "main": "index.js",
+#   "keywords": [
+#     "react-native",
+#     "expo",
+#     "share",
+#     "native-module"
+#   ],
+#   "repository": {
+#     "type": "git",
+#     "url": "https://example.com/your-repo.git"
+#   },
+#   "author": "Hussein",
+#   "license": "MIT",
+#   "peerDependencies": {
+#     "react-native": "*"
+#   },
+#   "react-native": {
+#     "android": {
+#       "sourceDir": "./android",
+#       "packageImportPath": "import com.anonymous.realtimechatexpo.BashSharePackage",
+#       "packageInstance": "BashSharePackage()"
+#     }
+#   }
+# }

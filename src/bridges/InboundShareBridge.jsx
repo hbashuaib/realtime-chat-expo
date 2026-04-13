@@ -4,7 +4,8 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import { DeviceEventEmitter, NativeModules } from "react-native";
+import BashShareModule, { BashShareEmitter } from "../../bash-share-module";
+import { NativeModules } from "react-native";
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
@@ -75,9 +76,9 @@ export default function InboundShareBridge({ onShare }) {
 
     let lastPayload = null;
 
-    // Subscribe directly to DeviceEventEmitter
-    const subscription = DeviceEventEmitter.addListener("onShareReceived", async (raw) => {
-      console.log("[Inbound Share] DeviceEventEmitter fired with raw:", raw, typeof raw);
+    // Subscribe directly to BashShareEmitter
+    const subscription = BashShareEmitter.addListener("onShareReceived", async (raw) => {
+      console.log("[Inbound Share] BashShareEmitter fired with raw:", raw, typeof raw);
       if (raw && raw !== lastPayload) {
         lastPayload = raw;
         await consume(raw);
@@ -88,11 +89,11 @@ export default function InboundShareBridge({ onShare }) {
 
     console.log("[Inbound Share] Listener attached at", Date.now());
 
-    // ✅ Fallback peek in case event fired before listener attached
-    const { BashShareModule } = NativeModules;
+    // Debug: list all native modules
+    console.log("[Debug] NativeModules keys:", Object.keys(NativeModules));
 
-    // 🔎 Extra debug: log the whole module object
-    console.log("[Inbound Share] NativeModules.BashShareModule full:", BashShareModule);
+    // Debug: inspect BashShareModule directly
+    console.log("[Debug] NativeModules.BashShareModule:", NativeModules.BashShareModule);
 
     // 🔎 Debug: log exported keys
     console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
@@ -108,6 +109,15 @@ export default function InboundShareBridge({ onShare }) {
         } else {
           console.log("[Inbound Share] No pending share at mount");
         }
+
+        // 🔎 Extra debug: call ping + consume again explicitly
+        if (BashShareModule?.ping) {
+          const res = await BashShareModule.ping();
+          console.log("[Debug] Ping result (extra):", res);
+        }
+        const testConsume = await BashShareModule?.consumePendingShare?.();
+        console.log("[Debug] Direct consumePendingShare result:", testConsume);
+
       } catch (e) {
         console.error("[Inbound Share] Fallback consume error:", e);
       }
@@ -130,7 +140,7 @@ export default function InboundShareBridge({ onShare }) {
 // ✅ Minimal test listener component
 export function DebugShareListener() {
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener("onShareReceived", (raw) => {
+    const sub = BashShareEmitter.addListener("onShareReceived", (raw) => {
       console.log("[DebugShareListener] Got event:", raw, typeof raw);
     });
     return () => sub.remove();
