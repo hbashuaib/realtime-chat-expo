@@ -53,12 +53,20 @@ export default function InboundShareBridge({ onShare }) {
 
     if (!payload) return;
 
-    const key = JSON.stringify(payload);
-    if (key && key === lastKey) {
-      console.log("[Inbound Share] Duplicate event ignored");
-      return;
+    // Track last timestamp instead of payload content
+    const now = Date.now();
+    if (lastKey && now - lastKey < 2000) {
+      console.log("[Inbound Share] Ignored rapid duplicate");
+    } else {
+      lastKey = now;
+      if (typeof onShare === "function") {
+        console.log("[Inbound Share] Routed payload to onShare:", payload);
+        onShare(payload);
+      } else {
+        console.log("[Inbound Share] Routed payload to global store:", payload);
+        setInboundShare(payload);
+      }
     }
-    lastKey = key;
 
     /*__ONSHARE_NORMALIZED__*/ 
         if (typeof onShare === "function") {
@@ -79,28 +87,48 @@ export default function InboundShareBridge({ onShare }) {
     // Subscribe directly to BashShareEmitter
     const subscription = BashShareEmitter.addListener("onShareReceived", async (raw) => {
       console.log("[Inbound Share] BashShareEmitter fired with raw:", raw, typeof raw);
-      if (raw && raw !== lastPayload) {
-        lastPayload = raw;
+      // if (raw && raw !== lastPayload) {
+      //   lastPayload = raw;
+      //   await consume(raw);
+      // } else {
+      //   console.log("[Inbound Share] Duplicate payload ignored");
+      // }
+      if (raw) {
         await consume(raw);
-      } else {
-        console.log("[Inbound Share] Duplicate payload ignored");
       }
     });
 
     console.log("[Inbound Share] Listener attached at", Date.now());
-
+    
     // Debug: list all native modules
     console.log("[Debug] NativeModules keys:", Object.keys(NativeModules));
 
-    // Debug: inspect BashShareModule directly
-    console.log("[Debug] NativeModules.BashShareModule:", NativeModules.BashShareModule);
-
-    // 🔎 Debug: log exported keys
-    console.log("[Inbound Share] BashShareModule keys:", Object.keys(BashShareModule || {}));
-    console.log("[Inbound Share] BashShareModule full:", BashShareModule);
-
+    // Debug: test each BashShareModule method directly
     (async () => {
       try {
+        // Debug: test each BashShareModule method directly
+        if (BashShareModule?.ping) {
+          const res = await BashShareModule.ping();
+          console.log("[Debug] Ping result:", res);
+        }
+        if (BashShareModule?.peekPendingShare) {
+          const peek = await BashShareModule.peekPendingShare();
+          console.log("[Debug] Peek result:", peek);
+        }
+        if (BashShareModule?.consumePendingShare) {
+          const consumed = await BashShareModule.consumePendingShare();
+          console.log("[Debug] Consume result:", consumed);
+        }
+        if (BashShareModule?.flushPendingShare) {
+          await BashShareModule.flushPendingShare();
+          console.log("[Debug] Flush called successfully");
+        }
+        // if (BashShareModule?.notifyShareReceived) {
+        //   BashShareModule.notifyShareReceived("test-payload");
+        //   console.log("[Debug] notifyShareReceived called successfully");
+        // }
+
+        // Fallback consume at mount
         const pending = await BashShareModule?.consumePendingShare?.();
         if (pending && pending !== lastPayload) {
           console.log("[Inbound Share] Fallback consume found:", pending);
@@ -109,15 +137,6 @@ export default function InboundShareBridge({ onShare }) {
         } else {
           console.log("[Inbound Share] No pending share at mount");
         }
-
-        // 🔎 Extra debug: call ping + consume again explicitly
-        if (BashShareModule?.ping) {
-          const res = await BashShareModule.ping();
-          console.log("[Debug] Ping result (extra):", res);
-        }
-        const testConsume = await BashShareModule?.consumePendingShare?.();
-        console.log("[Debug] Direct consumePendingShare result:", testConsume);
-
       } catch (e) {
         console.error("[Inbound Share] Fallback consume error:", e);
       }

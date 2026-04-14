@@ -17,5 +17,10 @@
   "license": "MIT",
   "peerDependencies": {
     "react-native": "*"
+  },
+  "expo": {
+    "autolinking": {
+      "exclude": ["bash-share-module"]
+    }
   }
 }

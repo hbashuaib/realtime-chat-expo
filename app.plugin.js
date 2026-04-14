@@ -28,15 +28,13 @@ function patchAppBuildGradle(src) {
     );
   }
 
-  // --- Fix B: Ensure Kotlin + bash-share-module sourceSets ---
-  if (!updated.includes("../bash-share-module/android/src/main/java")) {
+  // --- Fix B: Add Kotlin sourceSets ---
+  if (!updated.includes("sourceSets {")) {
     updated = updated.replace(
-      /android\s*{/, 
+      /android\s*{/,
       `android {
       sourceSets {
-          main {
-              java.srcDirs = ['src/main/java', 'src/main/kotlin', '../bash-share-module/android/src/main/java']
-          }
+          main { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
           debug { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
           release { java.srcDirs = ['src/main/java', 'src/main/kotlin'] }
       }
@@ -46,6 +44,12 @@ function patchAppBuildGradle(src) {
   }
 
   // Ensure dependencies    
+  if (!updated.includes("project(':bash-share-module')")) {
+    updated = updated.replace(
+      /dependencies\s*{/,
+      `dependencies {\n    implementation project(':bash-share-module')`
+    );
+  }
   if (!updated.includes("kotlin-stdlib")) {
     updated = updated.replace(
       /implementation\("com.facebook.react:react-android"\)/,

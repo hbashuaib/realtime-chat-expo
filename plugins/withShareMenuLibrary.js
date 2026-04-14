@@ -289,7 +289,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
       if (!pendingJson.isNullOrEmpty()) {
           android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
           val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-          module?.flushPendingShare()
+          module?.flushPendingShareInternal()
 
           // ❌ Do not flush or consume here
           // ✅ Leave it queued for JS to fetch via consumePendingShare()
@@ -352,7 +352,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
           if (!pendingJson.isNullOrEmpty()) {
               android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
               val module = context?.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-              module?.flushPendingShare()
+              module?.flushPendingShareInternal()
 
               // ❌ Do not emit or consume here
               // ✅ Leave it queued for JS to fetch via consumePendingShare()
