@@ -4,8 +4,11 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import BashShareModule, { BashShareEmitter } from "../../bash-share-module";
-import { NativeModules } from "react-native";
+import BashShareModule, { BashShareEmitter } from "bash-share-module";
+import { NativeModules, NativeEventEmitter } from "react-native";
+
+// const { BashShareModule } = NativeModules;
+// export const BashShareEmitter = new NativeEventEmitter(BashShareModule);
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
@@ -20,7 +23,8 @@ export default function InboundShareBridge({ onShare }) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object" && parsed.kind) {
           if (parsed.kind === "text") {
-            payload = { kind: "text", text: String(parsed.text || "").trim() };
+            const textValue = parsed.text || parsed.payload?.text || "";
+            payload = { kind: "text", text: String(textValue).trim() };
           } else {
             payload = { kind: "media", payload: parsed.payload || parsed };
           }
@@ -41,6 +45,10 @@ export default function InboundShareBridge({ onShare }) {
     } else if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
       payload = { kind: "text", text: raw.nativeEvent.trim() };
       console.log("[Inbound Share] Payload(nativeEvent):", payload);
+    } else if (raw && typeof raw === "object" && raw.kind) {
+      // Already a normalized payload from native
+      payload = raw;
+      console.log("[Inbound Share] Payload(object):", payload);
     } else if (raw) {
       try {
         const normalized = await toBashChatPayload(raw);
@@ -66,33 +74,23 @@ export default function InboundShareBridge({ onShare }) {
         console.log("[Inbound Share] Routed payload to global store:", payload);
         setInboundShare(payload);
       }
-    }
-
-    /*__ONSHARE_NORMALIZED__*/ 
-        if (typeof onShare === "function") {
-          console.log("[Inbound Share] Routed payload to onShare:", payload);
-          onShare(payload);
-        } else {
-          console.log("[Inbound Share] Routed payload to global store:", payload);
-          setInboundShare(payload);
-        }
+    }  
     
   };
 
   useEffect(() => {
     console.log("[Inbound Share] Bridge mounted");
+    console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule)); // ✅ should show ping, peekPendingShare, etc.
+    console.log("[Debug] BashShareEmitter keys:", Object.keys(BashShareEmitter));
+    console.log("[Debug] NativeModules.BashShareModule keys:", Object.keys(NativeModules.BashShareModule || {}));
 
     let lastPayload = null;
 
     // Subscribe directly to BashShareEmitter
     const subscription = BashShareEmitter.addListener("onShareReceived", async (raw) => {
       console.log("[Inbound Share] BashShareEmitter fired with raw:", raw, typeof raw);
-      // if (raw && raw !== lastPayload) {
-      //   lastPayload = raw;
-      //   await consume(raw);
-      // } else {
-      //   console.log("[Inbound Share] Duplicate payload ignored");
-      // }
+      console.log("[Inbound Share] BashShareEmitter fired with raw:", JSON.stringify(raw));
+
       if (raw) {
         await consume(raw);
       }

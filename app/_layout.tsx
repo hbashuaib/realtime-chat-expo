@@ -15,6 +15,8 @@ import { ColorScheme, theme } from "@/src/core/theme";
 
 import { DeviceEventEmitter} from "react-native";
 import BashShareModule from "bash-share-module";
+import DebugSharePing from "@/src/bridges/DebugSharePing";
+
 
 console.log(
   "[Debug] BashShareModule keys:",
@@ -176,6 +178,7 @@ export default function RootLayout() {
     <>
       {console.log("[RootLayout] Rendering InboundShareBridge")}
       <InboundShareBridge onShare={handleInboundShare} />
+      <DebugSharePing />
       {/* <DebugShareListener /> */}
       {(!initialized || !fontsLoaded) ? null : (
         <MenuProvider>

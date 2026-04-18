@@ -104,8 +104,9 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                 if (reactApplicationContext.hasActiveCatalystInstance()) {
                     val emitter = reactApplicationContext
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    // Emit raw JSON string to JS
                     emitter.emit("onShareReceived", pending.toString())
-                    android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS successfully")
+                    android.util.Log.e("BashChatTest", ">>> flushPendingShareInternal emitted to JS with payload: $pending")
                     promise.resolve("flushed")
                 } else {
                     promise.resolve("flushed")
@@ -130,8 +131,9 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                 if (reactApplicationContext.hasActiveCatalystInstance()) {
                     val emitter = reactApplicationContext
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    // Emit raw JSON string to JS
                     emitter.emit("onShareReceived", pending.toString())
-                    android.util.Log.e("BashChatTest", ">>> flushPendingShareInternal emitted to JS successfully")
+                    android.util.Log.e("BashChatTest", ">>> flushPendingShareInternal emitted to JS with payload: $pending")
                 } else {
                     android.util.Log.e("BashChatTest", ">>> Catalyst not active, payload left queued")
                 }

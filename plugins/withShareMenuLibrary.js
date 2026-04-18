@@ -309,10 +309,14 @@ import com.anonymous.realtimechatexpo.BuildConfig
     }
   }
 
-  val intent = getIntent()
-  if (intent != null && intent.action != Intent.ACTION_MAIN) {
-    emitShareIntentToJS(intent)
-  }
+  // val intent = getIntent()
+  // if (intent != null && intent.action != Intent.ACTION_MAIN) {
+  //   emitShareIntentToJS(intent)
+  // }
+
+  // ❌ Removed emitShareIntentToJS call
+  // ✅ Only rely on listener + forwardIntentToJS when context is alive
+
   super.onCreate(null)
 }`,
       );
@@ -331,34 +335,34 @@ import com.anonymous.realtimechatexpo.BuildConfig
         /\n}\s*$/,
         `
 
-      override fun onResume() {
-          super.onResume()
-          android.util.Log.e("BashChatTest", ">>> onResume: checking for pending share")
+      // override fun onResume() {
+      //     super.onResume()
+      //     android.util.Log.e("BashChatTest", ">>> onResume: checking for pending share")
 
-          val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
-          val context = manager.currentReactContext
+      //     val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+      //     val context = manager.currentReactContext
 
-          // Flush intent if present
-          val immediate = pendingShareIntent ?: pendingShareStatic
-          if (context != null && immediate != null) {
-              android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
-              forwardIntentToJS(context, immediate)
-          }
+      //     // Flush intent if present
+      //     val immediate = pendingShareIntent ?: pendingShareStatic
+      //     if (context != null && immediate != null) {
+      //         android.util.Log.e("BashChatTest", ">>> Flushing pending share from onResume")
+      //         forwardIntentToJS(context, immediate)
+      //     }
 
-          // Flush BashShareQueue
-          val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
-          android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
+      //     // Flush BashShareQueue
+      //     val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
+      //     android.util.Log.e("BashChatTest", ">>> onResume: BashShareQueue.peek() = $pendingJson")
 
-          if (!pendingJson.isNullOrEmpty()) {
-              android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
-              val module = context?.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-              module?.flushPendingShareInternal()
+      //     if (!pendingJson.isNullOrEmpty()) {
+      //         android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
+      //         val module = context?.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+      //         module?.flushPendingShareInternal()
 
-              // ❌ Do not emit or consume here
-              // ✅ Leave it queued for JS to fetch via consumePendingShare()
-          }
-      }   // ✅ only one brace closes onResume
-    }
+      //         // ❌ Do not emit or consume here
+      //         // ✅ Leave it queued for JS to fetch via consumePendingShare()
+      //     }
+      // }   // ✅ only one brace closes onResume
+    // }
     `,
       );
     }
@@ -405,44 +409,49 @@ import com.anonymous.realtimechatexpo.BuildConfig
           } catch (e: Exception) {
               android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
           }
-      }
+      }      
+      
   }
 
-  private fun emitShareIntentToJS(intent: Intent?) {
-    if (intent == null) return
+  // private fun emitShareIntentToJS(intent: Intent?) {
+  //   if (intent == null) return
 
-    val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
-    val context = manager.currentReactContext
+  //   val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+  //   val context = manager.currentReactContext
 
-    if (context == null) {
-      android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing NEW share (overwrite)")
-      pendingShareIntent = intent
-      pendingShareStatic = intent
+  //   if (context == null) {
+  //     android.util.Log.e("BashChatTest", ">>> ReactContext not ready, queuing NEW share (overwrite)")
+  //     pendingShareIntent = intent
+  //     pendingShareStatic = intent
 
-      // Build and enqueue JSON even if context is null
-      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-      if (!sharedText.isNullOrEmpty()) {
-        val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-        val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-        com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-        android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (context null): $json")
-      }
+  //     // Build and enqueue JSON even if context is null
+  //     val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+  //     if (!sharedText.isNullOrEmpty()) {
+  //       val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
+  //       val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+  //       com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+  //       android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (context null): $json")
+  //     }
 
-      try {
-        android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
-        manager.createReactContextInBackground()
-      } catch (e: Exception) {
-        android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
-      }
+  //     try {
+  //       android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
+  //       manager.createReactContextInBackground()
+  //     } catch (e: Exception) {
+  //       android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
+  //     }
 
-      return
-    }
+  //     return
+  //   }
 
-    // ❌ Remove immediate forwarding
-    // ✅ Only queue intent; JS will consume later
-    pendingShareIntent = intent
-    pendingShareStatic = intent
-  }  
+  //   // ❌ Remove immediate forwarding
+  //   // ✅ Only queue intent; JS will consume later
+  //   pendingShareIntent = intent
+  //   pendingShareStatic = intent
+  // }  
+
+  // ❌ Helper removed completely
+  // ✅ Only keep forwardIntentToJS
+
 
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
       val action = intent.action
@@ -783,51 +792,51 @@ function withNoOpMainActivity(config) {
 }
 
 // Patch InboundShareBridge.jsx to normalize onShare handling and dedup lastKey assignments
-function withInboundShareBridgePatches(config) {
-  return withDangerousMod(config, [
-    "android",
-    (cfg) => {
-      const jsPath = path.join(
-        cfg.modRequest.projectRoot,
-        "src",
-        "bridges",
-        "InboundShareBridge.jsx",
-      );
-      if (!fs.existsSync(jsPath)) return cfg;
+// function withInboundShareBridgePatches(config) {
+//   return withDangerousMod(config, [
+//     "android",
+//     (cfg) => {
+//       const jsPath = path.join(
+//         cfg.modRequest.projectRoot,
+//         "src",
+//         "bridges",
+//         "InboundShareBridge.jsx",
+//       );
+//       if (!fs.existsSync(jsPath)) return cfg;
 
-      let js = fs.readFileSync(jsPath, "utf8");
+//       let js = fs.readFileSync(jsPath, "utf8");
 
-      // --- 0. Idempotency marker ---
-      if (js.includes("/*__ONSHARE_NORMALIZED__*/")) {
-        console.log("InboundShareBridge already normalized — skipping.");
-        return cfg;
-      }
+//       // --- 0. Idempotency marker ---
+//       if (js.includes("/*__ONSHARE_NORMALIZED__*/")) {
+//         console.log("InboundShareBridge already normalized — skipping.");
+//         return cfg;
+//       }
 
-      // --- 1. Normalize onShare routing block (consume closing brace too) ---
-      js = js.replace(
-        /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*\}/g,
-        `/*__ONSHARE_NORMALIZED__*/
-        if (typeof onShare === "function") {
-          console.log("[Inbound Share] Routed payload to onShare:", payload);
-          onShare(payload);
-        } else {
-          console.log("[Inbound Share] Routed payload to global store:", payload);
-          setInboundShare(payload);
-        }`
-      );
+//       // --- 1. Normalize onShare routing block (consume closing brace too) ---
+//       js = js.replace(
+//         /if\s*\(typeof onShare === "function"\)[\s\S]*?setInboundShare\(payload\);\s*\}/g,
+//         `/*__ONSHARE_NORMALIZED__*/
+//         if (typeof onShare === "function") {
+//           console.log("[Inbound Share] Routed payload to onShare:", payload);
+//           onShare(payload);
+//         } else {
+//           console.log("[Inbound Share] Routed payload to global store:", payload);
+//           setInboundShare(payload);
+//         }`
+//       );
 
-      // --- 2. Dedup lastKey assignments ---
-      js = js.replace(
-        /lastKey\s*=\s*JSON\.stringify\(payload\);\s*(lastKey\s*=\s*JSON\.stringify\(payload\);\s*)+/g,
-        "lastKey = JSON.stringify(payload);"
-      );      
+//       // --- 2. Dedup lastKey assignments ---
+//       js = js.replace(
+//         /lastKey\s*=\s*JSON\.stringify\(payload\);\s*(lastKey\s*=\s*JSON\.stringify\(payload\);\s*)+/g,
+//         "lastKey = JSON.stringify(payload);"
+//       );      
 
-      fs.writeFileSync(jsPath, js);
-      console.log("Patched InboundShareBridge.jsx (normalized onShare + dedup)");
-      return cfg;
-    },
-  ]);
-}
+//       fs.writeFileSync(jsPath, js);
+//       console.log("Patched InboundShareBridge.jsx (normalized onShare + dedup)");
+//       return cfg;
+//     },
+//   ]);
+// }
 
 // Export the combined plugin
 module.exports = function withShareMenuLibrary(config) {
@@ -838,7 +847,7 @@ module.exports = function withShareMenuLibrary(config) {
   config = withShareMenuActivityJava(config);
   config = withNormalizeAppIcon(config);
   config = withScrubMissingRoundIcon(config);  
-  config = withInboundShareBridgePatches(config); 
+  // config = withInboundShareBridgePatches(config); 
   config = withBashSharePackage(config);
 
   return config;
