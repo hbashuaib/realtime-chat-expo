@@ -7,7 +7,7 @@ index 23446c6..164644d 100644
  
  android {
 -    compileSdkVersion safeExtGet('compileSdkVersion', rnsDefaultCompileSdkVersion)
-+    compileSdkVersion 35
++    compileSdkVersion 36
      namespace "com.swmansion.rnscreens"
  
      // Used to override the NDK path/version on internal CI or by allowing
@@ -18,7 +18,7 @@ index 23446c6..164644d 100644
 -        minSdkVersion safeExtGet(['minSdkVersion', 'minSdk'], rnsDefaultMinSdkVersion)
 -        targetSdkVersion safeExtGet(['targetSdkVersion', 'targetSdk'], rnsDefaultTargetSdkVersion)
 +        minSdkVersion 24
-+        targetSdkVersion 35
++        targetSdkVersion 36
          versionCode 1
          versionName "1.0"
          buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", IS_NEW_ARCHITECTURE_ENABLED.toString()

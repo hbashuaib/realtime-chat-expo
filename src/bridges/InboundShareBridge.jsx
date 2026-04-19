@@ -4,11 +4,14 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import BashShareModule, { BashShareEmitter } from "bash-share-module";
+// import BashShareModule, { BashShareEmitter } from "bash-share-module";
 import { NativeModules, NativeEventEmitter } from "react-native";
 
 // const { BashShareModule } = NativeModules;
 // export const BashShareEmitter = new NativeEventEmitter(BashShareModule);
+const { BashShareModule } = NativeModules;
+const BashShareEmitter = new NativeEventEmitter(BashShareModule);
+
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
@@ -98,6 +101,23 @@ export default function InboundShareBridge({ onShare }) {
 
     console.log("[Inbound Share] Listener attached at", Date.now());
     
+    // 🔎 Immediately check queue for missed payloads
+    (async () => {
+      try {
+        // Always consume once after mount to catch missed events
+        const pending = await BashShareModule.consumePendingShare();
+        if (pending) {
+          console.log("[Inbound Share] Found pending after mount (consume):", pending);
+          await consume(pending);
+        } else {
+          console.log("[Inbound Share] No pending share after mount");
+        }
+      } catch (e) {
+        console.error("[Inbound Share] Error checking queue after mount:", e);
+      }
+    })();
+
+
     // Debug: list all native modules
     console.log("[Debug] NativeModules keys:", Object.keys(NativeModules));
 

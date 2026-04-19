@@ -14,6 +14,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
 
     companion object {
         const val NAME = "BashShareModule"
+        const val EVENT_SHARE_RECEIVED = "onShareReceived"
     }
 
     init {
@@ -21,11 +22,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     }
 
     // override fun getName(): String = "BashShareModule"
-    override fun getName(): String {
-        android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: $NAME")
-        return NAME
-    }
-    
+    // override fun getName(): String {
+    //     android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: $NAME")
+    //     return NAME
+    // }
+
+    override fun getName(): String = NAME
+
+    // Tell RN which events this module can emit
+    override fun getConstants(): MutableMap<String, Any> {
+        return mutableMapOf(
+            "supportedEvents" to listOf(EVENT_SHARE_RECEIVED)
+        )
+    }    
 
     // Required for NativeEventEmitter
     @ReactMethod
@@ -106,11 +115,12 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     // Emit raw JSON string to JS
                     emitter.emit("onShareReceived", pending.toString())
-                    android.util.Log.e("BashChatTest", ">>> flushPendingShareInternal emitted to JS with payload: $pending")
-                    promise.resolve("flushed")
+                    android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS with payload: $pending")
+                    // ✅ Do not consume here — leave it queued
+                    promise.resolve("emitted")
                 } else {
-                    promise.resolve("flushed")
-                    android.util.Log.e("BashChatTest", ">>> Catalyst not active, leaving payload queued")
+                    promise.resolve("queued")
+                    android.util.Log.e("BashChatTest", ">>> Catalyst not active, payload left queued")
                 }
             } else {
                 promise.resolve("nothing")
@@ -134,6 +144,8 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                     // Emit raw JSON string to JS
                     emitter.emit("onShareReceived", pending.toString())
                     android.util.Log.e("BashChatTest", ">>> flushPendingShareInternal emitted to JS with payload: $pending")
+                    // ❌ Do not consume here
+                    // ✅ Leave it queued so JS can call consumePendingShare()
                 } else {
                     android.util.Log.e("BashChatTest", ">>> Catalyst not active, payload left queued")
                 }

@@ -8,13 +8,13 @@ function patchAppBuildGradle(src) {
 
   // --- Fix A: Hardcode SDK versions ---
   // Replace compileSdkVersion line
-  updated = updated.replace(/compileSdk(?:Version)?\s+\S+/, "compileSdkVersion 35");
+  updated = updated.replace(/compileSdk(?:Version)?\s+\S+/, "compileSdkVersion 36");
   // Replace minSdkVersion line
   updated = updated.replace(/minSdkVersion\s+\S+/, "minSdkVersion 24");
   // Replace targetSdkVersion line
-  updated = updated.replace(/targetSdkVersion\s+\S+/, "targetSdkVersion 35");
+  updated = updated.replace(/targetSdkVersion\s+\S+/, "targetSdkVersion 36");
   // Replace buildToolsVersion line if present
-  updated = updated.replace(/buildToolsVersion\s+\S+/, 'buildToolsVersion "35.0.0"');
+  updated = updated.replace(/buildToolsVersion\s+\S+/, 'buildToolsVersion "36.0.0"');
 
   // Ensure buildConfigField
   if (!updated.includes("REACT_NATIVE_RELEASE_LEVEL")) {

@@ -180,23 +180,15 @@ class MainActivity : ReactActivity() {
 
       // ReactContext will be created in background if not already
       val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
-      // if (manager.currentReactContext == null) {
-      //     try {
-      //         android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
-      //         manager.createReactContextInBackground()
-      //     } catch (e: Exception) {
-      //         android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${e.message}", e)
-      //     }
-      // }
-      
-      if (!manager.hasStartedReactContext()) {
+      if (manager.currentReactContext == null) {
           try {
               android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
               manager.createReactContextInBackground()
           } catch (e: Exception) {
               android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${e.message}", e)
           }
-      }
+      }      
+      
   }
 
   // private fun emitShareIntentToJS(intent: Intent?) {

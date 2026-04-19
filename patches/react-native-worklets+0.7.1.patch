@@ -7,7 +7,7 @@ index 61c565b..b11489b 100644
  
  android {
 -    compileSdkVersion safeExtGet("compileSdkVersion", 34)
-+    compileSdkVersion 35
++    compileSdkVersion 36
  
      namespace "com.swmansion.worklets"
  
@@ -18,7 +18,7 @@ index 61c565b..b11489b 100644
 -        minSdkVersion safeExtGet("minSdkVersion", 23)
 -        targetSdkVersion safeExtGet("targetSdkVersion", 34)
 +        minSdkVersion 24
-+        targetSdkVersion 35
++        targetSdkVersion 36
          versionCode 1
          versionName WORKLETS_VERSION
  
