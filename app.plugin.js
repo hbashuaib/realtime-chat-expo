@@ -44,12 +44,12 @@ function patchAppBuildGradle(src) {
   }
 
   // Ensure dependencies    
-  if (!updated.includes("project(':bash-share-module')")) {
-    updated = updated.replace(
-      /dependencies\s*{/,
-      `dependencies {\n    implementation project(':bash-share-module')`
-    );
-  }
+  // if (!updated.includes("project(':bash-share-module')")) {
+  //   updated = updated.replace(
+  //     /dependencies\s*{/,
+  //     `dependencies {\n    implementation project(':bash-share-module')`
+  //   );
+  // }
   if (!updated.includes("kotlin-stdlib")) {
     updated = updated.replace(
       /implementation\("com.facebook.react:react-android"\)/,

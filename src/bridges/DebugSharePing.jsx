@@ -1,6 +1,9 @@
 // src/bridges/DebugSharePing.jsx
 import { useEffect } from "react";
 import BashShareModule from "bash-share-module";
+// import { NativeModules } from "react-native";
+
+// const { BashShareModule } = NativeModules;
 
 export default function DebugSharePing() {
   useEffect(() => {

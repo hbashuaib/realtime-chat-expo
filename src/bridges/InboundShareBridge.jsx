@@ -4,13 +4,15 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-// import BashShareModule, { BashShareEmitter } from "bash-share-module";
-import { NativeModules, NativeEventEmitter } from "react-native";
+import BashShareModule, { BashShareEmitter } from "bash-share-module";
+import { NativeModules } from "react-native";
+
+// import { NativeModules, NativeEventEmitter } from "react-native";
 
 // const { BashShareModule } = NativeModules;
 // export const BashShareEmitter = new NativeEventEmitter(BashShareModule);
-const { BashShareModule } = NativeModules;
-const BashShareEmitter = new NativeEventEmitter(BashShareModule);
+// const { BashShareModule } = NativeModules;
+// const BashShareEmitter = new NativeEventEmitter(BashShareModule);
 
 
 export default function InboundShareBridge({ onShare }) {
@@ -94,8 +96,18 @@ export default function InboundShareBridge({ onShare }) {
       console.log("[Inbound Share] BashShareEmitter fired with raw:", raw, typeof raw);
       console.log("[Inbound Share] BashShareEmitter fired with raw:", JSON.stringify(raw));
 
-      if (raw) {
-        await consume(raw);
+      let parsed = raw;
+      if (typeof raw === "string") {
+        try {
+          parsed = JSON.parse(raw);
+          console.log("[Inbound Share] Parsed payload:", parsed);
+        } catch (e) {
+          console.error("[Inbound Share] Failed to parse share payload:", e);
+        }
+      }
+
+      if (parsed) {
+        await consume(parsed);
       }
     });
 

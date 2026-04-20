@@ -16,7 +16,9 @@ import { ColorScheme, theme } from "@/src/core/theme";
 import { DeviceEventEmitter} from "react-native";
 import BashShareModule from "bash-share-module";
 import DebugSharePing from "@/src/bridges/DebugSharePing";
+// import { NativeModules } from "react-native";
 
+// const { BashShareModule } = NativeModules;
 
 console.log(
   "[Debug] BashShareModule keys:",
