@@ -7,14 +7,6 @@ import { useEffect } from "react";
 import BashShareModule, { BashShareEmitter } from "bash-share-module";
 import { NativeModules } from "react-native";
 
-// import { NativeModules, NativeEventEmitter } from "react-native";
-
-// const { BashShareModule } = NativeModules;
-// export const BashShareEmitter = new NativeEventEmitter(BashShareModule);
-// const { BashShareModule } = NativeModules;
-// const BashShareEmitter = new NativeEventEmitter(BashShareModule);
-
-
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
   let lastKey = null;
@@ -111,24 +103,61 @@ export default function InboundShareBridge({ onShare }) {
       }
     });
 
+    // Signal native that JS is ready
+    if (BashShareModule?.jsReady) {
+      BashShareModule.jsReady().then(res => {
+        console.log("[Inbound Share] jsReady result:", res);
+      });
+    }
+
     console.log("[Inbound Share] Listener attached at", Date.now());
     
-    // 🔎 Immediately check queue for missed payloads
+    // // 🔎 Immediately check queue for missed payloads
+    // (async () => {
+    //   try {
+    //     // Always consume once after mount to catch missed events
+    //     const pending = await BashShareModule.consumePendingShare();
+    //     if (pending) {
+    //       console.log("[Inbound Share] Found pending after mount (consume):", pending);
+    //       await consume(pending);
+    //     } else {
+    //       console.log("[Inbound Share] No pending share after mount");
+    //     }
+    //   } catch (e) {
+    //     console.error("[Inbound Share] Error checking queue after mount:", e);
+    //   }
+    // })();
+
+    // 🔎 Immediately check queue for missed payloads + retry timer
     (async () => {
       try {
-        // Always consume once after mount to catch missed events
         const pending = await BashShareModule.consumePendingShare();
         if (pending) {
           console.log("[Inbound Share] Found pending after mount (consume):", pending);
           await consume(pending);
         } else {
           console.log("[Inbound Share] No pending share after mount");
+
+          // Retry up to 3 times with 1s delay
+          let tries = 0;
+          const retry = async () => {
+            if (tries++ < 3) {
+              const again = await BashShareModule.consumePendingShare();
+              if (again) {
+                console.log("[Inbound Share] Retry found pending:", again);
+                await consume(again);
+              } else {
+                console.log("[Inbound Share] Retry attempt", tries, "found nothing");
+                setTimeout(retry, 1000);
+              }
+            }
+          };
+          retry();
         }
       } catch (e) {
         console.error("[Inbound Share] Error checking queue after mount:", e);
       }
     })();
-
 
     // Debug: list all native modules
     console.log("[Debug] NativeModules keys:", Object.keys(NativeModules));
@@ -152,11 +181,7 @@ export default function InboundShareBridge({ onShare }) {
         if (BashShareModule?.flushPendingShare) {
           await BashShareModule.flushPendingShare();
           console.log("[Debug] Flush called successfully");
-        }
-        // if (BashShareModule?.notifyShareReceived) {
-        //   BashShareModule.notifyShareReceived("test-payload");
-        //   console.log("[Debug] notifyShareReceived called successfully");
-        // }
+        }        
 
         // Fallback consume at mount
         const pending = await BashShareModule?.consumePendingShare?.();

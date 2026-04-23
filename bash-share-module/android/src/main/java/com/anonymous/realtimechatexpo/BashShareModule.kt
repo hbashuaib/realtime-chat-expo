@@ -19,13 +19,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
 
     init {
         android.util.Log.e("BashChatTest", ">>> BashShareModule instance created")
-    }
-
-    // override fun getName(): String = "BashShareModule"
-    // override fun getName(): String {
-    //     android.util.Log.e("BashChatTest", ">>> BashShareModule registered with name: $NAME")
-    //     return NAME
-    // }
+    }    
 
     override fun getName(): String = NAME
 
@@ -113,9 +107,11 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                 if (reactApplicationContext.hasActiveCatalystInstance()) {
                     val emitter = reactApplicationContext
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    // Emit raw JSON string to JS
-                    emitter.emit("onShareReceived", pending.toString())
+                    
+                    // Do NOT emit here — just log
+                    // emitter.emit("onShareReceived", pending.toString())
                     android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted to JS with payload: $pending")
+                    // Leave it queued so JS can call consumePendingShare()
                     // ✅ Do not consume here — leave it queued
                     promise.resolve("emitted")
                 } else {
@@ -154,6 +150,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
             }
         } catch (e: Exception) {
             android.util.Log.e("BashChatTest", "!!! Exception in flushPendingShareInternal: ${e.message}", e)
+        }
+    }
+
+    @ReactMethod
+    fun jsReady(promise: Promise) {
+        android.util.Log.e("BashChatTest", ">>> JS signaled ready")
+        val pending = BashShareQueue.peek()
+        if (pending != null) {
+            val module = reactApplicationContext.getNativeModule(BashShareModule::class.java)
+            module?.flushPendingShareInternal()
+            promise.resolve("flushed")
+        } else {
+            promise.resolve("nothing")
         }
     }
 }

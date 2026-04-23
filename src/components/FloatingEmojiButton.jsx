@@ -21,7 +21,7 @@ export default function FloatingEmojiButton() {
 const styles = StyleSheet.create({
   button: {
     position: "absolute",
-    bottom: 30,
+    bottom: 100,
     right: 20,
     backgroundColor: "#007AFF",
     borderRadius: 30,

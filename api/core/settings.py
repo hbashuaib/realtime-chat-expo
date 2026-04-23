@@ -31,7 +31,7 @@ ALLOWED_HOSTS = [
     'localhost', 
     '10.0.2.2', 
     '127.0.0.1',
-    '192.168.3.59',    
+    '192.168.3.62',    
 ]
 
 
@@ -76,8 +76,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://10.0.2.2",              # API via emulator
 
     "http://localhost:19006",        # Expo web preview
-    "http://192.168.3.59:19000",     # Expo Go on physical device
-    "http://192.168.3.59:8081",      # Metro bundler on LAN
+    "http://192.168.3.62:19000",     # Expo Go on physical device
+    "http://192.168.3.62:8081",      # Metro bundler on LAN
       
 ]
 
