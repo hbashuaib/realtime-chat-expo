@@ -39,6 +39,8 @@ import ChatHeader from "@/src/components/ChatHeader";
 import { theme } from "@/src/core/theme";
 import { router, useLocalSearchParams } from "expo-router";
 
+import BashShareModule from "bash-share-module";
+
 // WhatsApp-like compact time (e.g., 14:07)
 function formatTimeShort(dateString) {
   if (!dateString) return "";
@@ -646,10 +648,11 @@ function groupMessagesByDay(messages) {
 
 // --------------------------------------- SCREEN --------------------------------------
 export default function MessageScreen() {  
-  const { id: connectionIdRaw, friend: friendParam, fromShare } = useLocalSearchParams();
+  const { id: connectionIdRaw, friend: friendParam, fromShare, payload } = useLocalSearchParams();
   const connectionId = Number(connectionIdRaw); // ✅ force integer
   
   const inboundShare = useGlobal((s) => s.inboundShare);
+  const setInboundShare = useGlobal((s) => s.setInboundShare);
   const clearInboundShare = useGlobal((s) => s.clearInboundShare);
   
   // If friend is passed as JSON string, parse; else assume object
@@ -669,98 +672,104 @@ export default function MessageScreen() {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // // Effect 1: initial check
-  // useEffect(() => {
-  //   if (fromShare !== "1") return;
-  //   if (!connectionId) return;
-  //   if (!inboundShare) return;
-
-  //   if (!socketReady) {
-  //     console.log("[Message] Socket not ready, will retry when ready...");
-  //     return; // ✅ don’t clear inboundShare yet
-  //   }
-
-  //   console.log("[Message] Consuming inbound share immediately:", inboundShare);
-  //   if (inboundShare.kind === "text") {
-  //     const text = (inboundShare.text || "").trim();
-  //     if (text.length > 0) messageSend(connectionId, text);
-  //   } else {
-  //     messageSend(connectionId, "", inboundShare.payload);
-  //   }
-  //   clearInboundShare();
-  // }, [fromShare, connectionId, inboundShare]);
-
-  // // Effect 2: retry once socketReady flips true
-  // useEffect(() => {
-  //   if (fromShare !== "1") return;
-  //   if (!connectionId) return;
-  //   if (!inboundShare) return;
-  //   if (!socketReady) return;
-
-  //   console.log("[Message] Retrying inbound share after socketReady:", inboundShare);
-  //   if (inboundShare.kind === "text") {
-  //     const text = (inboundShare.text || "").trim();
-  //     if (text.length > 0) messageSend(connectionId, text);
-  //   } else {
-  //     messageSend(connectionId, "", inboundShare.payload);
-  //   }
-  //   clearInboundShare();
-  // }, [socketReady]);
-
-  // Combined Effect: single effect that checks all conditions and retries when socketReady changes
-  // useEffect(() => {
-  //   if (fromShare !== "1" || !connectionId || !socketReady) return;
-
-  //   (async () => {
-  //     try {
-  //       const raw = await NativeModules.BashShareModule.consumePendingShare();
-  //       if (!raw) {
-  //         console.log("[Message] No pending share to consume");
-  //         return;
-  //       }
-
-  //       let inbound;
-  //       try {
-  //         inbound = JSON.parse(raw);
-  //       } catch {
-  //         inbound = { kind: "text", text: String(raw) };
-  //       }
-
-  //       console.log("[Message] Consuming inbound share:", inbound);
-
-  //       if (inbound.kind === "text") {
-  //         const text = (inbound.text || "").trim();
-  //         if (text.length > 0) {
-  //           messageSend(connectionId, text);
-  //         }
-  //       } else {
-  //         messageSend(connectionId, "", inbound.payload);
-  //       }
-
-  //       clearInboundShare(); // ✅ clear after sending
-  //     } catch (e) {
-  //       console.error("[Message] Failed to consume share:", e);
-  //     }
-  //   })();
-  // }, [fromShare, connectionId, socketReady]);
-
-  // Final Effect: listens to inboundShare changes and retries when socketReady changes, ensuring share is consumed as soon as possible
+  // 🔎 Consume inbound payload passed via route params
   useEffect(() => {
-    if (fromShare !== "1" || !connectionId || !socketReady || !inboundShare) return;
+    if (payload) {
+      try {
+        const parsed = JSON.parse(payload);
+        console.log("[MessageScreen] Consuming inbound payload:", parsed);
 
-    console.log("[Message Inbound Share] Consuming inbound share:", inboundShare);
+        if (parsed.kind === "text") {
+          const text = (parsed.payload?.text || "").trim(); // ✅ always read from payload.text
+          if (text.length > 0) {
+            messageSend(connectionId, text);
+          }
+        } else if (parsed.kind === "media") {
+          messageSend(connectionId, "", parsed.payload);
+        }   
 
-    if (inboundShare.kind === "text") {
-      const text = (inboundShare.text || "").trim();
-      if (text.length > 0) {
-        messageSend(connectionId, text);
+        clearInboundShare(); // ✅ clear banner/global after sending
+        
+      } catch (e) {
+        console.error("[MessageScreen] Failed to parse inbound payload:", e);
       }
-    } else {
-      messageSend(connectionId, "", inboundShare.payload);
     }
+  }, [payload, connectionId, messageSend, clearInboundShare]);
 
-    clearInboundShare(); // ✅ clear after sending
-  }, [fromShare, connectionId, socketReady, inboundShare]);
+  // 🔎 NEW: Consume inbound payload from global state
+  useEffect(() => {
+    if (inboundShare) {
+      console.log("[MessageScreen] Consuming inbound payload (global):", inboundShare);
+
+      if (inboundShare.kind === "text") {
+        const text = (inboundShare.payload?.text || inboundShare.text || "").trim();
+        if (text.length > 0) {
+          messageSend(connectionId, text);
+        }
+      } else if (inboundShare.kind === "media") {
+        messageSend(connectionId, "", inboundShare.payload);
+      }
+
+      clearInboundShare();              // ✅ clear global state
+      BashShareModule?.consumePendingShare?.(); // ✅ clear native queue
+      
+    }
+  }, [inboundShare, connectionId, messageSend, clearInboundShare]);
+
+
+  // // 🔎 Consume pending share when screen mounts
+  // useEffect(() => {
+  //   if (fromShare === "1") {
+  //     (async () => {
+  //       try {
+  //         const pending = await BashShareModule.consumePendingShare();
+  //         if (pending) {
+  //           console.log("[Message Inbound Share] Consuming inbound share (mount):", pending);
+
+  //           let parsed;
+  //           try {
+  //             parsed = typeof pending === "string" ? JSON.parse(pending) : pending;
+  //           } catch {
+  //             parsed = { kind: "text", text: String(pending).trim() };
+  //           }
+
+  //           // ✅ Send immediately instead of re‑parsing or re‑setting global
+  //           if (parsed.kind === "text") {
+  //             const text = (parsed.text || parsed.payload?.text || "").trim();
+  //             if (text.length > 0) {
+  //               messageSend(connectionId, text);
+  //             }
+  //           } else {
+  //             messageSend(connectionId, "", parsed.payload);
+  //           }
+
+  //           clearInboundShare(); // clear after sending
+  //         }
+  //       } catch (e) {
+  //         console.error("[Message Inbound Share] Error consuming share:", e);
+  //       }
+  //     })();
+  //   }
+  // }, [fromShare, connectionId, messageSend, clearInboundShare]);
+
+
+  // // Final Effect: listens to inboundShare changes and retries when socketReady changes, ensuring share is consumed as soon as possible
+  // useEffect(() => {
+  //   if (fromShare !== "1" || !connectionId || !socketReady || !inboundShare) return;
+
+  //   console.log("[Message Inbound Share] Consuming inbound share:", inboundShare);
+
+  //   if (inboundShare.kind === "text") {
+  //     const text = (inboundShare.text || "").trim();
+  //     if (text.length > 0) {
+  //       messageSend(connectionId, text);
+  //     }
+  //   } else {
+  //     messageSend(connectionId, "", inboundShare.payload);
+  //   }
+
+  //   clearInboundShare(); // ✅ clear after sending
+  // }, [fromShare, connectionId, socketReady, inboundShare]);
 
   const keyboardOffset = Platform.OS === "ios" ? 60 : statusBarHeight + 30;
   const emojiPickerHeight = 300;

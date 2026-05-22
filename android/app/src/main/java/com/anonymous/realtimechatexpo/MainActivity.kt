@@ -40,59 +40,17 @@ class MainActivity : ReactActivity() {
 
   // Always add a listener once per app start
   manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-    override fun onReactContextInitialized(readyContext: ReactContext) {
-      android.util.Log.e("BashChatTest", ">>> ReactContext ready; flushing pending share")
-      val immediate = pendingShareIntent ?: pendingShareStatic
-      if (immediate != null) {
-        forwardIntentToJS(readyContext, immediate)        
+      override fun onReactContextInitialized(readyContext: ReactContext) {
+        android.util.Log.e("BashChatTest", ">>> ReactContext ready; BashShareModule initialized")
+
+        // ✅ Initialize module only; do not emit here
+        readyContext.getNativeModule(BashShareModule::class.java)
+
+        manager.removeReactInstanceEventListener(this)
       }
-
-      // // Always flush BashShareQueue into JS
-      // val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
-      // if (!pendingJson.isNullOrEmpty()) {
-      //     android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
-      //     val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-      //     module?.flushPendingShareInternal()
-
-      //     // ❌ Do not flush or consume here
-      //     // ✅ Leave it queued for JS to fetch via consumePendingShare()
-      // }
-      
-      val handler = android.os.Handler(android.os.Looper.getMainLooper())
-
-      // ✅ Schedule delayed flushes to JS in case React Native isn't ready to receive immediately
-      handler.postDelayed({
-          val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-          val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
-          if (pending != null) {
-              android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms)")
-              module?.flushPendingShareInternal()
-          }
-      }, 2500)
-
-      handler.postDelayed({
-          val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-          val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
-          if (pending != null) {
-              android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms)")
-              module?.flushPendingShareInternal()
-          }
-      }, 5000)
-
-      handler.postDelayed({
-          val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
-          val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
-          if (pending != null) {
-              android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms)")
-              module?.flushPendingShareInternal()
-          }
-      }, 8000)
-      
-      manager.removeReactInstanceEventListener(this)
-    }
   })
 
-  // Flush immediately if context is already active
+  // ReactContext already active — only initialize module
   val existingContext = manager.currentReactContext
   if (existingContext != null) {
     android.util.Log.e("BashChatTest", ">>> ReactContext already active; flushing pending share")
@@ -101,6 +59,20 @@ class MainActivity : ReactActivity() {
       forwardIntentToJS(existingContext, immediate)
     }
   }  
+  
+  // ✅ Handle cold start share intent
+  val intent = getIntent()
+  if (intent != null && intent.action == Intent.ACTION_SEND) {
+      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+      if (!sharedText.isNullOrEmpty()) {
+          val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
+          val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
+          com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")     
+          
+          // ❌ Do not emit here
+      }
+  }
 
   // ❌ Removed emitShareIntentToJS call
   // ✅ Only rely on listener + forwardIntentToJS when context is alive
@@ -153,16 +125,17 @@ class MainActivity : ReactActivity() {
 
   override fun onNewIntent(intent: Intent) {
       super.onNewIntent(intent)
-      setIntent(intent)
-      android.widget.Toast.makeText(this, "MainActivity received: $intent", android.widget.Toast.LENGTH_SHORT).show()
+      setIntent(intent)      
       android.util.Log.e("BashChatTest", ">>> MainActivity onNewIntent fired with intent: $intent")
 
+      val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager  // ✅ add this
+      
       if (intent != null && intent.action == Intent.ACTION_MAIN) {
-          android.util.Log.e("BashChatTest", ">>> Ignoring immediate ACTION_MAIN relaunch to preserve share intent")
+          android.util.Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent")
           return
       }
 
-      // Do not flush here — just queue
+      // ✅ Only queue the intent
       pendingShareIntent = intent
       pendingShareStatic = intent
 
@@ -173,23 +146,35 @@ class MainActivity : ReactActivity() {
           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
-      }
 
-      // ReactContext will be created in background if not already
-      val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
-      if (manager.currentReactContext == null) {
-          try {
-              android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
-              manager.createReactContextInBackground()
-          } catch (e: Exception) {
-              android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${e.message}", e)
+          val ctx = manager.currentReactContext
+          if (ctx != null && ctx.hasActiveReactInstance()) {
+              val module = ctx.getNativeModule(BashShareModule::class.java)
+              module?.notifyNewShareAvailable()
+              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
+          } else {
+              android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
+              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+                  override fun onReactContextInitialized(reactContext: ReactContext) {
+                      val module = reactContext.getNativeModule(BashShareModule::class.java)
+                      module?.notifyNewShareAvailable()
+                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
+
+                      // ✅ remove this listener after firing
+                      manager.removeReactInstanceEventListener(this)
+                  }
+              })
+
           }
-      }      
+      }
       
+      // ❌ Do not call forwardIntentToJS here
+      // ❌ Do not flush or consume queue here
+      // ✅ Leave payload in BashShareQueue until JS calls jsReady()      
   }  
 
   // ❌ Helper removed completely
-  // ✅ Only keep forwardIntentToJS
+  // ✅ Only keep forwardIntentToJS 
 
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
       val action = intent.action

@@ -7,10 +7,13 @@ import com.facebook.react.uimanager.ViewManager
 
 class BashSharePackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    val modules = mutableListOf<NativeModule>()
-    modules.add(BashShareModule(reactContext))
-    android.util.Log.e("BashChatTest", ">>> BashSharePackage creating BashShareModule")
-    return modules
+    // val modules = mutableListOf<NativeModule>()
+    // modules.add(BashShareModule(reactContext))
+    // android.util.Log.e("BashChatTest", ">>> BashSharePackage creating BashShareModule")
+    // return modules
+
+    // ✅ Register BashShareModule and initialize queue via its init block
+    return listOf(BashShareModule(reactContext))
   }
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {

@@ -18,6 +18,11 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
 class MainApplication : Application(), ReactApplication {
+  companion object {
+    lateinit var instance: MainApplication
+      private set
+  }
+
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
       this,
@@ -42,6 +47,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    instance = this
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {

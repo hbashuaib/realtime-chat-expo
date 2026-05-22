@@ -268,7 +268,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
     if (!src.includes(">>> MainActivity onCreate")) {
       src = src.replace(
         /override fun onCreate\(savedInstanceState: Bundle\?\) \{([\s\S]*?)\n\s*super\.onCreate\(null\)\n\s*\}/,
-        String.raw`override fun onCreate(savedInstanceState: Bundle?) {$1
+        `override fun onCreate(savedInstanceState: Bundle?) {$1
   // >>> MainActivity onCreate injected
   android.widget.Toast.makeText(this, "MainActivity started", android.widget.Toast.LENGTH_SHORT).show()
   android.util.Log.e("BashChatTest", ">>> MainActivity onCreate fired with intent: " + getIntent())
@@ -277,39 +277,82 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
   // Always add a listener once per app start
   manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-      override fun onReactContextInitialized(readyContext: ReactContext) {
-        android.util.Log.e("BashChatTest", ">>> ReactContext ready; BashShareModule initialized")
+    override fun onReactContextInitialized(readyContext: ReactContext) {
+      // android.util.Log.e("BashChatTest", ">>> ReactContext ready; flushing pending share")
+      android.util.Log.e("BashChatTest", ">>> ReactContext ready; waiting for JS handshake")
 
-        // ✅ Initialize module only; do not emit here
-        readyContext.getNativeModule(BashShareModule::class.java)
+      // ✅ Force eager initialization of BashShareModule
+      readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
 
-        manager.removeReactInstanceEventListener(this)
-      }
+      
+      // val immediate = pendingShareIntent ?: pendingShareStatic
+      // if (immediate != null) {
+      //   forwardIntentToJS(readyContext, immediate)        
+      // }
+
+      // // Always flush BashShareQueue into JS
+      // val pendingJson = com.anonymous.realtimechatexpo.BashShareQueue.peek() as? String
+      // if (!pendingJson.isNullOrEmpty()) {
+      //     android.util.Log.e("BashChatTest", ">>> Flushing BashShareQueue into JS via BashShareModule")
+      //     val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+      //     module?.flushPendingShareInternal()
+
+      //     // ❌ Do not flush or consume here
+      //     // ✅ Leave it queued for JS to fetch via consumePendingShare()
+      // }
+      
+      // val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+      // // ✅ Schedule delayed flushes to JS in case React Native isn't ready to receive immediately
+      // handler.postDelayed({
+      //     val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+      //     val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
+      //     if (pending != null) {
+      //         android.util.Log.e("BashChatTest", ">>> Delayed flush (2500ms)")
+      //         module?.flushPendingShareInternal()
+      //     }
+      // }, 2500)
+
+      // handler.postDelayed({
+      //     val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+      //     val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
+      //     if (pending != null) {
+      //         android.util.Log.e("BashChatTest", ">>> Secondary flush (5000ms)")
+      //         module?.flushPendingShareInternal()
+      //     }
+      // }, 5000)
+
+      // handler.postDelayed({
+      //     val module = readyContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+      //     val pending = com.anonymous.realtimechatexpo.BashShareQueue.peek()
+      //     if (pending != null) {
+      //         android.util.Log.e("BashChatTest", ">>> Tertiary flush (8000ms)")
+      //         module?.flushPendingShareInternal()
+      //     }
+      // }, 8000)
+
+      // ❌ Do not flush here
+      // ✅ Only flush when JS calls BashShareModule.jsReady()
+      
+      manager.removeReactInstanceEventListener(this)
+    }
   })
 
-  // ReactContext already active — only initialize module
+  // Flush immediately if context is already active
   val existingContext = manager.currentReactContext
   if (existingContext != null) {
     android.util.Log.e("BashChatTest", ">>> ReactContext already active; flushing pending share")
-    val immediate = pendingShareIntent ?: pendingShareStatic
-    if (immediate != null) {
-      forwardIntentToJS(existingContext, immediate)
-    }
+    existingContext.getNativeModule(com.anonymous.realtimechatexpo.BashShareModule::class.java)
+
+    // val immediate = pendingShareIntent ?: pendingShareStatic
+    // if (immediate != null) {
+    //   forwardIntentToJS(existingContext, immediate)
+    // }
+
+    // ❌ Do not forwardIntentToJS here
+    // ✅ Leave payload in BashShareQueue until JS calls jsReady()
+
   }  
-  
-  // ✅ Handle cold start share intent
-  val intent = getIntent()
-  if (intent != null && intent.action == Intent.ACTION_SEND) {
-      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-      if (!sharedText.isNullOrEmpty()) {
-          val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-          val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")     
-          
-          // ❌ Do not emit here
-      }
-  }
 
   // ❌ Removed emitShareIntentToJS call
   // ✅ Only rely on listener + forwardIntentToJS when context is alive
@@ -339,17 +382,16 @@ import com.anonymous.realtimechatexpo.BuildConfig
         String.raw`
   override fun onNewIntent(intent: Intent) {
       super.onNewIntent(intent)
-      setIntent(intent)      
+      setIntent(intent)
+      android.widget.Toast.makeText(this, "MainActivity received: $intent", android.widget.Toast.LENGTH_SHORT).show()
       android.util.Log.e("BashChatTest", ">>> MainActivity onNewIntent fired with intent: $intent")
 
-      val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager  // ✅ add this
-      
       if (intent != null && intent.action == Intent.ACTION_MAIN) {
-          android.util.Log.e("BashChatTest", ">>> Ignoring ACTION_MAIN relaunch to preserve share intent")
+          android.util.Log.e("BashChatTest", ">>> Ignoring immediate ACTION_MAIN relaunch to preserve share intent")
           return
       }
 
-      // ✅ Only queue the intent
+      // Do not flush here — just queue
       pendingShareIntent = intent
       pendingShareStatic = intent
 
@@ -357,38 +399,29 @@ import com.anonymous.realtimechatexpo.BuildConfig
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
+          val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
-
-          val ctx = manager.currentReactContext
-          if (ctx != null && ctx.hasActiveReactInstance()) {
-              val module = ctx.getNativeModule(BashShareModule::class.java)
-              module?.notifyNewShareAvailable()
-              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
-          } else {
-              android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
-              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-                  override fun onReactContextInitialized(reactContext: ReactContext) {
-                      val module = reactContext.getNativeModule(BashShareModule::class.java)
-                      module?.notifyNewShareAvailable()
-                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
-
-                      // ✅ remove this listener after firing
-                      manager.removeReactInstanceEventListener(this)
-                  }
-              })
-
-          }
       }
+
+      // ReactContext will be created in background if not already
+      // val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+      // if (manager.currentReactContext == null) {
+      //     try {
+      //         android.util.Log.e("BashChatTest", ">>> Forcing React context creation in background")
+      //         manager.createReactContextInBackground()
+      //     } catch (e: Exception) {
+      //         android.util.Log.e("BashChatTest", "!!! Failed to create React context: ${"${"}e.message${"}"}", e)
+      //     }
+      // } 
       
       // ❌ Do not call forwardIntentToJS here
-      // ❌ Do not flush or consume queue here
-      // ✅ Leave payload in BashShareQueue until JS calls jsReady()      
+      // ✅ Leave payload in BashShareQueue until JS calls jsReady()
+      
   }  
 
   // ❌ Helper removed completely
-  // ✅ Only keep forwardIntentToJS 
+  // ✅ Only keep forwardIntentToJS
 
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
       val action = intent.action
@@ -598,8 +631,6 @@ function withShareMenuActivityJava(config) {
       import android.net.Uri;
       import android.content.ClipData;
       import android.util.Log;
-      import com.facebook.react.ReactApplication;
-      
 
       public class ShareMenuActivity extends AppCompatActivity {
         @Override
@@ -657,36 +688,6 @@ function withShareMenuActivityJava(config) {
                     BashShareQueue.setPending(json);
                     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
                 }
-
-                // if (text != null) {
-                //     String json = "{\\\"kind\\\":\\\"text\\\",\\\"payload\\\":{\\\"text\\\":\" + escapeJson(text) + "}}";
-                //     BashShareQueue.setPending(json);
-                //     Log.e("BashChatTest", ">>> Queued text payload: " + text);
-
-                //     // ✅ Immediately emit to JS
-                //     com.anonymous.realtimechatexpo.BashShareModule module =
-                //         ((ReactApplication) getApplication()).getReactNativeHost()
-                //             .getReactInstanceManager()
-                //             .getCurrentReactContext()
-                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
-                //     if (module != null) {
-                //         module.emitPendingShare();
-                //     }
-                // } else if (stream != null) {
-                //     String json = "{\\\"kind\\\":\\\"image\\\",\\\"payload\\\":{\\\"uri\\\":\" + escapeJson(stream.toString()) + ",\\\"mime\\\":\" + escapeJson(mime) + "}}";
-                //     BashShareQueue.setPending(json);
-                //     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
-
-                //     // ✅ Immediately emit to JS
-                //     com.anonymous.realtimechatexpo.BashShareModule module =
-                //         ((ReactApplication) getApplication()).getReactNativeHost()
-                //             .getReactInstanceManager()
-                //             .getCurrentReactContext()
-                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
-                //     if (module != null) {
-                //         module.emitPendingShare();
-                //     }
-                // }
             } catch (Exception e) {
                 Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);
             }            
@@ -741,23 +742,7 @@ function withBashSharePackage(config) {
       );
     }
 
-    // 2. Ensure companion object with instance field
-    if (!src.includes("companion object")) {
-      src = src.replace(
-        /(class\s+MainApplication[^{]*\{)/,
-        `$1\n  companion object {\n    lateinit var instance: MainApplication\n      private set\n  }\n`
-      );
-    }
-
-    // 3. Ensure instance assignment in onCreate
-    if (!src.includes("instance = this")) {
-      src = src.replace(
-        /super\.onCreate\(\)/,
-        `super.onCreate()\n    instance = this`
-      );
-    }
-
-    // 4. Ensure package is added
+    // 2. Ensure package is added
     if (!src.includes("add(BashSharePackage())")) {
       src = src.replace(
         /(PackageList\(this\)\.packages\.apply \{)/,

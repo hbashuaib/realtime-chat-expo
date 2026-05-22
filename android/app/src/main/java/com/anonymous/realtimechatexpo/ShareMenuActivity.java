@@ -6,6 +6,8 @@ package com.anonymous.realtimechatexpo;
       import android.net.Uri;
       import android.content.ClipData;
       import android.util.Log;
+      import com.facebook.react.ReactApplication;
+      
 
       public class ShareMenuActivity extends AppCompatActivity {
         @Override
@@ -63,6 +65,36 @@ package com.anonymous.realtimechatexpo;
                     BashShareQueue.setPending(json);
                     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
                 }
+
+                // if (text != null) {
+                //     String json = "{\"kind\":\"text\",\"payload\":{\"text\":" + escapeJson(text) + "}}";
+                //     BashShareQueue.setPending(json);
+                //     Log.e("BashChatTest", ">>> Queued text payload: " + text);
+
+                //     // ✅ Immediately emit to JS
+                //     com.anonymous.realtimechatexpo.BashShareModule module =
+                //         ((ReactApplication) getApplication()).getReactNativeHost()
+                //             .getReactInstanceManager()
+                //             .getCurrentReactContext()
+                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
+                //     if (module != null) {
+                //         module.emitPendingShare();
+                //     }
+                // } else if (stream != null) {
+                //     String json = "{\"kind\":\"image\",\"payload\":{\"uri\":" + escapeJson(stream.toString()) + ",\"mime\":" + escapeJson(mime) + "}}";
+                //     BashShareQueue.setPending(json);
+                //     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
+
+                //     // ✅ Immediately emit to JS
+                //     com.anonymous.realtimechatexpo.BashShareModule module =
+                //         ((ReactApplication) getApplication()).getReactNativeHost()
+                //             .getReactInstanceManager()
+                //             .getCurrentReactContext()
+                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
+                //     if (module != null) {
+                //         module.emitPendingShare();
+                //     }
+                // }
             } catch (Exception e) {
                 Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);
             }            

@@ -95,6 +95,8 @@ export default function RootLayout() {
     setLastPayloadKey(null);
   }, []);
 
+  
+  // ✅ Handle queuedPayload correctly: keep until we actually deliver into Message
   useEffect(() => {
     if (!queuedPayload) return;
     if (!initialized || !fontsLoaded) return;
@@ -102,104 +104,50 @@ export default function RootLayout() {
     if (!activeFriend || !activeConnectionId) {
       console.warn("[Inbound Share] No active chat context; redirecting to Friends");
       router.replace("/(tabs)/Friends");
-      return; // Keep queuedPayload until context is ready
+      return; // keep queuedPayload until context is ready
     }
 
+    // Route into Message when friend/connection is ready
     router.replace({
       pathname: "/Message",
       params: {
         id: String(activeConnectionId),
         friend: JSON.stringify(activeFriend),
         inbound: "1",
-      },
-    });
-    setQueuedPayload(null);
-  }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
- 
-  // useEffect(() => {
-  //   if (BashShareModule?.peekPendingShare && BashShareModule?.consumePendingShare) {
-  //     const interval = setInterval(async () => {
-  //       try {
-  //         const peek = await BashShareModule.peekPendingShare();
-  //         if (!peek) return;
-
-  //         const res = await BashShareModule.consumePendingShare();
-  //         if (!res) return;
-
-  //         let parsed: InboundPayload;
-  //         try {
-  //           parsed = JSON.parse(res);
-  //         } catch {
-  //           parsed = { kind: "text", text: String(res) };
-  //         }
-
-  //         const key = JSON.stringify(parsed);
-
-  //         if (key !== lastPayloadKey) {
-  //           handleInboundShare(parsed);
-  //           setLastPayloadKey(key);
-  //         } else {
-  //           console.log("[RootLayout] Duplicate payload ignored");
-  //         }
-
-  //         // ✅ stop polling immediately after one payload
-  //         clearInterval(interval);
-  //       } catch (err) {
-  //         console.error("[RootLayout] share polling error:", err);
-  //       }
-  //     }, 1000);
-
-  //     return () => clearInterval(interval);
-  //   }
-  // }, [handleInboundShare, lastPayloadKey]);
-
-  // ✅ Reset lastPayloadKey after routing so next share is processed
-  useEffect(() => {
-    if (!queuedPayload) return;
-    if (!initialized || !fontsLoaded) return;
-
-    if (!activeFriend || !activeConnectionId) {
-      router.replace("/(tabs)/Friends");
-      return;
-    }
-
-    router.replace({
-      pathname: "/Message",
-      params: {
-        id: String(activeConnectionId),
-        friend: JSON.stringify(activeFriend),
-        inbound: "1",
+        // payload: JSON.stringify(queuedPayload), // ✅ hand off payload
+        payload: JSON.stringify(
+          queuedPayload.kind === "text"
+            ? { kind: "text", payload: { text: queuedPayload.text } }
+            : queuedPayload
+        ),
       },
     });
 
-    setQueuedPayload(null);
-    setLastPayloadKey(null); // <--- reset here
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
+
 
   return (
     <>
-      {console.log("[RootLayout] Rendering InboundShareBridge")}
+      {/* ✅ Keep bridge always mounted at root */}
       <InboundShareBridge onShare={handleInboundShare} />
       <DebugSharePing />
-      {/* <DebugShareListener /> */}
-      {(!initialized || !fontsLoaded) ? null : (
-        <MenuProvider>
-          <PaperProvider theme={currentTheme}>   
-            <>
-              <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="Splash" />
-                <Stack.Screen name="SignIn" />
-                <Stack.Screen name="SignUp" />
-                <Stack.Screen name="Message" options={{ headerShown: false }} />
-                <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
-              </Stack>
-            </>
-          </PaperProvider>
-        </MenuProvider>
-      )}
+
+      <MenuProvider>
+        <PaperProvider theme={currentTheme}>
+          <>
+            <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Splash" />
+              <Stack.Screen name="SignIn" />
+              <Stack.Screen name="SignUp" />
+              <Stack.Screen name="Message" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
+            </Stack>
+          </>
+        </PaperProvider>
+      </MenuProvider>
     </>
-  );
+  ); 
   
 }
 

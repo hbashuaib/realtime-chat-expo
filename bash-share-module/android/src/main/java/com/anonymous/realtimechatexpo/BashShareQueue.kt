@@ -1,23 +1,43 @@
 package com.anonymous.realtimechatexpo
 
 object BashShareQueue {
-  @Volatile private var pending: String? = null
+  private const val PREF_NAME = "BashShareQueuePrefs"
+  private const val KEY_PENDING = "pending_share"
 
-  @JvmStatic fun setPending(value: String?) {
-    pending = value
+  // Store application context here
+  private var appContext: android.content.Context? = null
+
+  // Initialize once from BashShareModule
+  @JvmStatic fun init(context: android.content.Context) {
+    appContext = context.applicationContext
   }
 
-  // Only clear when JS explicitly consumes
+  @JvmStatic fun setPending(value: String?) {
+    val prefs = getPrefs()
+    prefs?.edit()?.putString(KEY_PENDING, value)?.apply()
+  }
+
   @JvmStatic fun consume(): String? {
-    val v = pending
+    val prefs = getPrefs()
+    val v = prefs?.getString(KEY_PENDING, null)
     if (v != null) {
-      // Clear only after returning a non-null payload
-      pending = null
+      prefs.edit()?.remove(KEY_PENDING)?.apply()
     }
     return v
   }
 
   @JvmStatic fun peek(): String? {
-    return pending
+    val prefs = getPrefs()
+    return prefs?.getString(KEY_PENDING, null)
+  }
+
+  @JvmStatic fun clear() {
+    val prefs = getPrefs()
+    prefs?.edit()?.remove(KEY_PENDING)?.apply()
+  }
+
+  // Helper to safely get SharedPreferences
+  private fun getPrefs(): android.content.SharedPreferences? {
+    return appContext?.getSharedPreferences(PREF_NAME, android.content.Context.MODE_PRIVATE)
   }
 }

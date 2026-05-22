@@ -53,7 +53,8 @@ kill-metro:
 # adb reverse tcp:8081 tcp:8081
 # login to Android device using: http://localhost:8081
 
-
+# Code to push my certificate to the emulator:
+# adb -s emulator-5554 push "D:\My Projects\certs\rootCA.crt" /sdcard/
 
 
 # 1. 	Build once with Gradle when you change native config:

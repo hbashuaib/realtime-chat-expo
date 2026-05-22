@@ -4,8 +4,12 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-import BashShareModule, { BashShareEmitter } from "bash-share-module";
-import { NativeModules } from "react-native";
+// import BashShareModule, { BashShareEmitter } from "bash-share-module";
+// import { NativeModules } from "react-native";
+import { NativeModules, NativeEventEmitter } from "react-native";
+
+const { BashShareModule } = NativeModules; // ✅ has jsReady, ping, etc.
+const BashShareEmitter = new NativeEventEmitter(BashShareModule); // ✅ for events
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
@@ -76,137 +80,53 @@ export default function InboundShareBridge({ onShare }) {
   };
 
   useEffect(() => {
-    console.log("[Inbound Share] Bridge mounted");
-    console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule)); // ✅ should show ping, peekPendingShare, etc.
-    console.log("[Debug] BashShareEmitter keys:", Object.keys(BashShareEmitter));
+    console.log("[Inbound Share] Bridge mounted");    
+    console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
     console.log("[Debug] NativeModules.BashShareModule keys:", Object.keys(NativeModules.BashShareModule || {}));
-
-    let lastPayload = null;
-
-    // Subscribe directly to BashShareEmitter
+    
+    // 1. Attach listener once
     const subscription = BashShareEmitter.addListener("onShareReceived", async (raw) => {
-      console.log("[Inbound Share] BashShareEmitter fired with raw:", raw, typeof raw);
-      console.log("[Inbound Share] BashShareEmitter fired with raw:", JSON.stringify(raw));
-
-      let parsed = raw;
-      if (typeof raw === "string") {
-        try {
-          parsed = JSON.parse(raw);
-          console.log("[Inbound Share] Parsed payload:", parsed);
-        } catch (e) {
-          console.error("[Inbound Share] Failed to parse share payload:", e);
-        }
-      }
-
-      if (parsed) {
+      console.log("[Inbound Share] Event fired with raw:", raw, typeof raw);
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
         await consume(parsed);
+      } catch (e) {
+        console.error("[Inbound Share] Failed to parse share payload:", e);
+        await consume(raw);
       }
     });
 
-    // Signal native that JS is ready
-    if (BashShareModule?.jsReady) {
-      BashShareModule.jsReady().then(res => {
-        console.log("[Inbound Share] jsReady result:", res);
+    console.log("[Inbound Share] Listener attached at", Date.now());   
+
+    // 2. Initial handshake
+    BashShareModule?.jsReady?.().then(res => {
+      console.log("[Inbound Share] jsReady result:", res);
+      // ✅ If jsReady already emitted, no need to immediately call requestPendingShare again
+      if (res === "nothing") {
+        BashShareModule?.requestPendingShare?.().then(r => {
+          console.log("[Inbound Share] initial requestPendingShare result:", r);
+        });
+      }
+    });
+
+
+    // 3. Listen for native signal
+    const newShareSub = BashShareEmitter.addListener("NewShareAvailable", () => {
+      console.log("[Inbound Share] NewShareAvailable received, requesting payload");
+      BashShareModule?.requestPendingShare?.().then(res => {
+        console.log("[Inbound Share] requestPendingShare result:", res);
       });
-    }
+    });
 
-    console.log("[Inbound Share] Listener attached at", Date.now());
-    
-    // // 🔎 Immediately check queue for missed payloads
-    // (async () => {
-    //   try {
-    //     // Always consume once after mount to catch missed events
-    //     const pending = await BashShareModule.consumePendingShare();
-    //     if (pending) {
-    //       console.log("[Inbound Share] Found pending after mount (consume):", pending);
-    //       await consume(pending);
-    //     } else {
-    //       console.log("[Inbound Share] No pending share after mount");
-    //     }
-    //   } catch (e) {
-    //     console.error("[Inbound Share] Error checking queue after mount:", e);
-    //   }
-    // })();
 
-    // 🔎 Immediately check queue for missed payloads + retry timer
-    (async () => {
-      try {
-        const pending = await BashShareModule.consumePendingShare();
-        if (pending) {
-          console.log("[Inbound Share] Found pending after mount (consume):", pending);
-          await consume(pending);
-        } else {
-          console.log("[Inbound Share] No pending share after mount");
-
-          // Retry up to 3 times with 1s delay
-          let tries = 0;
-          const retry = async () => {
-            if (tries++ < 3) {
-              const again = await BashShareModule.consumePendingShare();
-              if (again) {
-                console.log("[Inbound Share] Retry found pending:", again);
-                await consume(again);
-              } else {
-                console.log("[Inbound Share] Retry attempt", tries, "found nothing");
-                setTimeout(retry, 1000);
-              }
-            }
-          };
-          retry();
-        }
-      } catch (e) {
-        console.error("[Inbound Share] Error checking queue after mount:", e);
-      }
-    })();
-
-    // Debug: list all native modules
-    console.log("[Debug] NativeModules keys:", Object.keys(NativeModules));
-
-    // Debug: test each BashShareModule method directly
-    (async () => {
-      try {
-        // Debug: test each BashShareModule method directly
-        if (BashShareModule?.ping) {
-          const res = await BashShareModule.ping();
-          console.log("[Debug] Ping result:", res);
-        }
-        if (BashShareModule?.peekPendingShare) {
-          const peek = await BashShareModule.peekPendingShare();
-          console.log("[Debug] Peek result:", peek);
-        }
-        if (BashShareModule?.consumePendingShare) {
-          const consumed = await BashShareModule.consumePendingShare();
-          console.log("[Debug] Consume result:", consumed);
-        }
-        if (BashShareModule?.flushPendingShare) {
-          await BashShareModule.flushPendingShare();
-          console.log("[Debug] Flush called successfully");
-        }        
-
-        // Fallback consume at mount
-        const pending = await BashShareModule?.consumePendingShare?.();
-        if (pending && pending !== lastPayload) {
-          console.log("[Inbound Share] Fallback consume found:", pending);
-          lastPayload = pending;
-          await consume(pending);
-        } else {
-          console.log("[Inbound Share] No pending share at mount");
-        }
-      } catch (e) {
-        console.error("[Inbound Share] Fallback consume error:", e);
-      }
-    })();
-
-    if (BashShareModule?.ping) {
-      BashShareModule.ping()
-        .then(res => console.log("[Debug] Ping result:", res))
-        .catch(err => console.error("[Debug] Ping error:", err));
-    }
-
+    // 4. Clean up
     return () => {
       subscription.remove();
+      newShareSub.remove();
     };
-  }, [setInboundShare, onShare]);
+    // ✅ Empty dependency array so this runs only once on mount
+  }, []);
+
 
   return null;
 }
