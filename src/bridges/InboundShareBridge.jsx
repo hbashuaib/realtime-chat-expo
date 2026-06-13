@@ -101,14 +101,11 @@ export default function InboundShareBridge({ onShare }) {
     // 2. Initial handshake
     BashShareModule?.jsReady?.().then(res => {
       console.log("[Inbound Share] jsReady result:", res);
-      // ✅ If jsReady already emitted, no need to immediately call requestPendingShare again
-      if (res === "nothing") {
-        BashShareModule?.requestPendingShare?.().then(r => {
-          console.log("[Inbound Share] initial requestPendingShare result:", r);
-        });
-      }
+      // ✅ Always call requestPendingShare after jsReady
+      BashShareModule?.requestPendingShare?.().then(r => {
+        console.log("[Inbound Share] initial requestPendingShare result:", r);
+      });
     });
-
 
     // 3. Listen for native signal
     const newShareSub = BashShareEmitter.addListener("NewShareAvailable", () => {

@@ -19,14 +19,9 @@ class BashShareModule(reactContext: ReactApplicationContext) :
 
     init {
         android.util.Log.e("BashChatTest", ">>> BashShareModule instance created")
-
-        BashShareQueue.init(reactContext.applicationContext)
-
-        // ✅ Do not emit here — only emit when JS calls jsReady()
-        // This avoids duplicate or premature emission before JS is listening
+        // ✅ Queue already initialized in RealtimeChatExpoApplication
+        // Do not call BashShareQueue.init() here anymore
     }
-
-
     
 
     override fun getName(): String = NAME
@@ -138,20 +133,16 @@ class BashShareModule(reactContext: ReactApplicationContext) :
     fun jsReady(promise: Promise) {
         android.util.Log.e("BashChatTest", ">>> jsReady acknowledged, JS is ready")
 
+        // ✅ Do not consume here. Just signal readiness.
         val pending = BashShareQueue.peek()
-        if (pending != null && reactApplicationContext.hasActiveCatalystInstance()) {
-            val emitter = reactApplicationContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            emitter.emit(EVENT_SHARE_RECEIVED, pending.toString())
-            android.util.Log.e("BashChatTest", ">>> jsReady emitted pending: $pending")
-            BashShareQueue.consume()
-            promise.resolve("emitted")   // ✅ tell JS we actually emitted
+        if (pending != null) {
+            android.util.Log.e("BashChatTest", ">>> jsReady sees pending payload, waiting for requestPendingShare")
+            promise.resolve("pending")
         } else {
             promise.resolve("nothing")
             android.util.Log.e("BashChatTest", ">>> jsReady found nothing (queue empty)")
         }
     }
-
 
     @ReactMethod
     fun requestPendingShare(promise: Promise) {
@@ -161,8 +152,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             emitter.emit(EVENT_SHARE_RECEIVED, pending.toString())
             android.util.Log.e("BashChatTest", ">>> requestPendingShare emitted: $pending")
-            // ✅ consume after emit, but keep a log so we know it was cleared
-            BashShareQueue.consume()
+            BashShareQueue.consume()   // ✅ consume only here
             android.util.Log.e("BashChatTest", ">>> requestPendingShare queue consumed")
             promise.resolve("emitted")
         } else {
@@ -170,6 +160,7 @@ class BashShareModule(reactContext: ReactApplicationContext) :
             android.util.Log.e("BashChatTest", ">>> requestPendingShare found nothing (queue empty)")
         }
     }
+
 
     fun notifyNewShareAvailable() {
         if (reactApplicationContext.hasActiveCatalystInstance()) {

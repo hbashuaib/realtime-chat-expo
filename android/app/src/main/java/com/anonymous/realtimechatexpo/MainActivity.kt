@@ -60,7 +60,7 @@ class MainActivity : ReactActivity() {
     }
   }  
   
-  // ✅ Handle cold start share intent
+  // ✅ Handle cold start share intent  
   val intent = getIntent()
   if (intent != null && intent.action == Intent.ACTION_SEND) {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -68,11 +68,27 @@ class MainActivity : ReactActivity() {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")     
-          
-          // ❌ Do not emit here
+          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")
+
+          // ✅ Notify JS if context is alive, or defer
+          val ctx = manager.currentReactContext
+          if (ctx != null && ctx.hasActiveReactInstance()) {
+              val module = ctx.getNativeModule(BashShareModule::class.java)
+              module?.notifyNewShareAvailable()
+              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately (onCreate)")
+          } else {
+              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+                  override fun onReactContextInitialized(reactContext: ReactContext) {
+                      val module = reactContext.getNativeModule(BashShareModule::class.java)
+                      module?.notifyNewShareAvailable()
+                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init (onCreate)")
+                      manager.removeReactInstanceEventListener(this)
+                  }
+              })
+          }
       }
   }
+
 
   // ❌ Removed emitShareIntentToJS call
   // ✅ Only rely on listener + forwardIntentToJS when context is alive
@@ -146,26 +162,35 @@ class MainActivity : ReactActivity() {
           val json = """{"kind":"text","text":${escapeJson(cleaned)}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
+      } else {
+          // ✅ Handle non-text shares (image/audio/video/pdf/uri)
+          val streamUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
 
-          val ctx = manager.currentReactContext
-          if (ctx != null && ctx.hasActiveReactInstance()) {
-              val module = ctx.getNativeModule(BashShareModule::class.java)
-              module?.notifyNewShareAvailable()
-              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
-          } else {
-              android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
-              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-                  override fun onReactContextInitialized(reactContext: ReactContext) {
-                      val module = reactContext.getNativeModule(BashShareModule::class.java)
-                      module?.notifyNewShareAvailable()
-                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
-
-                      // ✅ remove this listener after firing
-                      manager.removeReactInstanceEventListener(this)
-                  }
-              })
-
+          if (streamUri != null) {
+              val mime = applicationContext.contentResolver.getType(streamUri) ?: ""
+              val json = """{"kind":"uri","uri":${escapeJson(streamUri.toString())},"mime":${escapeJson(mime)}}"""
+              com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+              android.util.Log.e("BashChatTest", ">>> Queued URI payload: $json")
           }
+      }
+
+      // ✅ Always notify JS if ReactContext is alive, regardless of payload type
+      val ctx = manager.currentReactContext
+      if (ctx != null && ctx.hasActiveReactInstance()) {
+          val module = ctx.getNativeModule(BashShareModule::class.java)
+          module?.notifyNewShareAvailable()
+          android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
+      } else {
+          android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
+          manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+              override fun onReactContextInitialized(reactContext: ReactContext) {
+                  val module = reactContext.getNativeModule(BashShareModule::class.java)
+                  module?.notifyNewShareAvailable()
+                  android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
+                  manager.removeReactInstanceEventListener(this)
+              }
+          })
       }
       
       // ❌ Do not call forwardIntentToJS here

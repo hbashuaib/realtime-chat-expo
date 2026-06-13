@@ -1,5 +1,6 @@
 package com.anonymous.realtimechatexpo
 import com.anonymous.realtimechatexpo.BashSharePackage
+import com.anonymous.realtimechatexpo.BashShareQueue
 
 import android.app.Application
 import android.content.res.Configuration
@@ -48,6 +49,8 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     instance = this
+    BashShareQueue.init(this)
+    android.util.Log.e("BashChatTest", ">>> BashShareQueue initialized in MainApplication")
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {

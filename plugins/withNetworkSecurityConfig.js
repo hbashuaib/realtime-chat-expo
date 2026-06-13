@@ -47,9 +47,9 @@ function withWriteNetworkSecurityXml(config) {
         </trust-anchors>
       </domain-config>
 
-      <!-- Metro + API for 190.2.10.121 -->
+      <!-- Metro + API for 190.2.10.39 -->
       <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">190.2.10.121</domain>
+        <domain includeSubdomains="true">190.2.10.39</domain>
         <trust-anchors>
           <certificates src="system"/>
           <certificates src="user"/>

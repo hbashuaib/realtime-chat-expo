@@ -297,19 +297,35 @@ import com.anonymous.realtimechatexpo.BuildConfig
     }
   }  
   
-  // ✅ Handle cold start share intent
+  // ✅ Handle cold start share intent  
   val intent = getIntent()
   if (intent != null && intent.action == Intent.ACTION_SEND) {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-          val json = """{"kind":"text","text":${"${"}escapeJson(cleaned)${"}"}}"""
+          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")     
-          
-          // ❌ Do not emit here
+          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")
+
+          // ✅ Notify JS if context is alive, or defer
+          val ctx = manager.currentReactContext
+          if (ctx != null && ctx.hasActiveReactInstance()) {
+              val module = ctx.getNativeModule(BashShareModule::class.java)
+              module?.notifyNewShareAvailable()
+              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately (onCreate)")
+          } else {
+              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+                  override fun onReactContextInitialized(reactContext: ReactContext) {
+                      val module = reactContext.getNativeModule(BashShareModule::class.java)
+                      module?.notifyNewShareAvailable()
+                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init (onCreate)")
+                      manager.removeReactInstanceEventListener(this)
+                  }
+              })
+          }
       }
   }
+
 
   // ❌ Removed emitShareIntentToJS call
   // ✅ Only rely on listener + forwardIntentToJS when context is alive
@@ -360,26 +376,35 @@ import com.anonymous.realtimechatexpo.BuildConfig
           val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
           com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
+      } else {
+          // ✅ Handle non-text shares (image/audio/video/pdf/uri)
+          val streamUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+              ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
 
-          val ctx = manager.currentReactContext
-          if (ctx != null && ctx.hasActiveReactInstance()) {
-              val module = ctx.getNativeModule(BashShareModule::class.java)
-              module?.notifyNewShareAvailable()
-              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
-          } else {
-              android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
-              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-                  override fun onReactContextInitialized(reactContext: ReactContext) {
-                      val module = reactContext.getNativeModule(BashShareModule::class.java)
-                      module?.notifyNewShareAvailable()
-                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
-
-                      // ✅ remove this listener after firing
-                      manager.removeReactInstanceEventListener(this)
-                  }
-              })
-
+          if (streamUri != null) {
+              val mime = applicationContext.contentResolver.getType(streamUri) ?: ""
+              val json = """{"kind":"uri","uri":${"$"}{escapeJson(streamUri.toString())},"mime":${"$"}{escapeJson(mime)}}"""
+              com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+              android.util.Log.e("BashChatTest", ">>> Queued URI payload: $json")
           }
+      }
+
+      // ✅ Always notify JS if ReactContext is alive, regardless of payload type
+      val ctx = manager.currentReactContext
+      if (ctx != null && ctx.hasActiveReactInstance()) {
+          val module = ctx.getNativeModule(BashShareModule::class.java)
+          module?.notifyNewShareAvailable()
+          android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
+      } else {
+          android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
+          manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+              override fun onReactContextInitialized(reactContext: ReactContext) {
+                  val module = reactContext.getNativeModule(BashShareModule::class.java)
+                  module?.notifyNewShareAvailable()
+                  android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
+                  manager.removeReactInstanceEventListener(this)
+              }
+          })
       }
       
       // ❌ Do not call forwardIntentToJS here
@@ -656,37 +681,7 @@ function withShareMenuActivityJava(config) {
                     String json = "{\\\"kind\\\":\\\"image\\\",\\\"payload\\\":{\\\"uri\\\":\" + escapeJson(stream.toString()) + ",\\\"mime\\\":\" + escapeJson(mime) + "}}";
                     BashShareQueue.setPending(json);
                     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
-                }
-
-                // if (text != null) {
-                //     String json = "{\\\"kind\\\":\\\"text\\\",\\\"payload\\\":{\\\"text\\\":\" + escapeJson(text) + "}}";
-                //     BashShareQueue.setPending(json);
-                //     Log.e("BashChatTest", ">>> Queued text payload: " + text);
-
-                //     // ✅ Immediately emit to JS
-                //     com.anonymous.realtimechatexpo.BashShareModule module =
-                //         ((ReactApplication) getApplication()).getReactNativeHost()
-                //             .getReactInstanceManager()
-                //             .getCurrentReactContext()
-                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
-                //     if (module != null) {
-                //         module.emitPendingShare();
-                //     }
-                // } else if (stream != null) {
-                //     String json = "{\\\"kind\\\":\\\"image\\\",\\\"payload\\\":{\\\"uri\\\":\" + escapeJson(stream.toString()) + ",\\\"mime\\\":\" + escapeJson(mime) + "}}";
-                //     BashShareQueue.setPending(json);
-                //     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
-
-                //     // ✅ Immediately emit to JS
-                //     com.anonymous.realtimechatexpo.BashShareModule module =
-                //         ((ReactApplication) getApplication()).getReactNativeHost()
-                //             .getReactInstanceManager()
-                //             .getCurrentReactContext()
-                //             .getNativeModule(com.anonymous.realtimechatexpo.BashShareModule.class);
-                //     if (module != null) {
-                //         module.emitPendingShare();
-                //     }
-                // }
+                }                
             } catch (Exception e) {
                 Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);
             }            
@@ -728,20 +723,59 @@ function withShareMenuActivityJava(config) {
   ]);
 }
 
+// Create RealtimeChatExpoApplication.kt to subclass MainApplication and init BashShareQueue
+function withRealtimeChatExpoApplicationKotlin(config) {
+  return withDangerousMod(config, [
+    "android",
+    (cfg) => {
+      const srcDir = path.join(
+        cfg.modRequest.projectRoot,
+        "android",
+        "app",
+        "src",
+        "main",
+        "java",
+        "com",
+        "anonymous",
+        "realtimechatexpo",
+      );
+      const filePath = path.join(srcDir, "RealtimeChatExpoApplication.kt");
+
+      const kotlinCode = `package com.anonymous.realtimechatexpo
+
+import android.app.Application
+
+class RealtimeChatExpoApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        BashShareQueue.init(this)
+        android.util.Log.e("BashChatTest", ">>> RealtimeChatExpoApplication started")
+    }
+}
+
+`;
+
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(filePath, kotlinCode);
+      return cfg;
+    },
+  ]);
+}
+
 // Ensure BashSharePackage is included in MainApplication.java
 function withBashSharePackage(config) {
   return withMainApplication(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // 1. Ensure import
+    // 1. Ensure imports
     if (!src.includes("import com.anonymous.realtimechatexpo.BashSharePackage")) {
       src = src.replace(
         /(package[^\n]*\n)/,
-        `$1import com.anonymous.realtimechatexpo.BashSharePackage\n`
+        `$1import com.anonymous.realtimechatexpo.BashSharePackage\nimport com.anonymous.realtimechatexpo.BashShareQueue\n`
       );
     }
 
-    // 2. Ensure companion object with instance field
+    // 2. Ensure companion object
     if (!src.includes("companion object")) {
       src = src.replace(
         /(class\s+MainApplication[^{]*\{)/,
@@ -749,11 +783,11 @@ function withBashSharePackage(config) {
       );
     }
 
-    // 3. Ensure instance assignment in onCreate
-    if (!src.includes("instance = this")) {
+    // 3. Ensure instance assignment + BashShareQueue.init in onCreate
+    if (!src.includes("BashShareQueue.init(this)")) {
       src = src.replace(
         /super\.onCreate\(\)/,
-        `super.onCreate()\n    instance = this`
+        `super.onCreate()\n    instance = this\n    BashShareQueue.init(this)\n    android.util.Log.e("BashChatTest", ">>> BashShareQueue initialized in MainApplication")`
       );
     }
 
@@ -778,15 +812,22 @@ function withNoOpMainActivity(config) {
 
 // Export the combined plugin
 module.exports = function withShareMenuLibrary(config) {
+  // Inject activities and filters first
   config = withInjectLibraryShareActivity(config);
   config = withNormalizeMainActivityViewFilters(config);
   config = withNoOpMainActivity(config);
-  config = withMainActivityLogging(config);
+  config = withMainActivityLogging(config); 
   config = withShareMenuActivityJava(config);
-  config = withNormalizeAppIcon(config);
-  config = withScrubMissingRoundIcon(config);  
-  // config = withInboundShareBridgePatches(config); 
-  config = withBashSharePackage(config);
 
+  // Normalize icons
+  config = withNormalizeAppIcon(config);
+  config = withScrubMissingRoundIcon(config);    
+
+  // Generate our custom Application class
+  config = withRealtimeChatExpoApplicationKotlin(config);
+
+  // Ensure BashSharePackage is wired into MainApplication.java
+  config = withBashSharePackage(config); 
+  
   return config;
 };
