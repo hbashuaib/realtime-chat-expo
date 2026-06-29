@@ -333,20 +333,16 @@ import com.anonymous.realtimechatexpo.BashShareQueue
           return
       }
 
-      // ✅ Only queue the intent
-      pendingShareIntent = intent
-      pendingShareStatic = intent
-
-      // Build and enqueue JSON immediately
+      // Queue payload
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
           val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
           BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
-      } 
+      }
 
-      // ✅ Immediately flush if ReactContext is already alive
+      // Flush if JS is alive
       val context = manager.currentReactContext
       if (context != null && context.hasActiveCatalystInstance()) {
           val module = context.getNativeModule(BashShareModule::class.java)
@@ -355,6 +351,20 @@ import com.anonymous.realtimechatexpo.BashShareQueue
       } else {
           android.util.Log.e("BashChatTest", ">>> ReactContext not ready, payload stays queued")
       }
+
+      // ✅ Only queue the intent
+      // pendingShareIntent = intent
+      // pendingShareStatic = intent
+
+      // Build and enqueue JSON immediately
+      // val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+      // if (!sharedText.isNullOrEmpty()) {
+      //     val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
+      //     val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
+      //     BashShareQueue.setPending(json)
+      //     android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
+      // } 
+      
   }  
   
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {

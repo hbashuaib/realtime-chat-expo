@@ -684,9 +684,14 @@ export default function MessageScreen() {
     if (route?.params?.fromShare !== "1") return;
     if (!route?.params?.friend) return;
 
-    // ✅ Guard against socket/connection not ready
-    if (!connectionId || !socket?.connected) {
-      console.warn("[MessageScreen] Socket not ready, delaying inbound delivery");
+    if (!connectionId) {
+      console.warn("[MessageScreen] No connectionId yet, waiting...");
+      return;
+    }
+
+    if (!socket?.connected) {
+      console.warn("[MessageScreen] Socket not ready, will retry when connected");
+      // ✅ Do not clear inboundShare here — wait until socket is ready
       return;
     }
 
@@ -697,8 +702,8 @@ export default function MessageScreen() {
         const text = (inboundShare.payload?.text || "").trim();
         if (text.length > 0) {
           messageSend(connectionId, text);
-          clearInboundShare();
-          await BashShareModule?.consumePendingShare?.();
+          clearInboundShare();                // ✅ clears banner
+          await BashShareModule?.consumePendingShare?.(); // ✅ clears native queue
         }
       } else if (inboundShare.kind === "media") {
         messageSend(connectionId, "", inboundShare.payload);
@@ -708,7 +713,7 @@ export default function MessageScreen() {
     };
 
     deliver();
-  }, [inboundShare, connectionId, socket?.connected, messageSend, clearInboundShare, route?.params]);
+  }, [inboundShare, connectionId, socket?.connected, route?.params]);
 
 
   // 🔎 Consume inbound payload passed via route params

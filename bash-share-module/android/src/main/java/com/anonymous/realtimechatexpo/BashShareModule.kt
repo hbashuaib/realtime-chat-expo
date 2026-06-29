@@ -84,18 +84,19 @@ class BashShareModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun flushPendingShare(promise: Promise) {
-        val pending = BashShareQueue.peek()
+        val pending = BashShareQueue.consume() // ✅ consume instead of peek
         if (pending != null && reactApplicationContext.hasActiveCatalystInstance()) {
             val emitter = reactApplicationContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             emitter.emit(EVENT_SHARE_RECEIVED, pending.toString())
-            android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted: $pending")
-            promise.resolve("emitted")
+            android.util.Log.e("BashChatTest", ">>> flushPendingShare emitted and consumed: $pending")
+            promise.resolve("emitted") // ✅ keep this line
         } else {
             promise.resolve("nothing")
             android.util.Log.e("BashChatTest", ">>> flushPendingShare found nothing or Catalyst inactive")
         }
     }
+
 
     // ✅ New explicit methods
     @ReactMethod
