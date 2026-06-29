@@ -10,48 +10,17 @@ import { Provider as PaperProvider } from "react-native-paper";
 
 import InboundShareBridge, { DebugShareListener } from "../src/bridges/InboundShareBridge";
 import "@/src/core/fontawesome";
-import useGlobal from "@/src/core/global";
+import useGlobal, { globalStore } from "@/src/core/global";
+
 import { ColorScheme, theme } from "@/src/core/theme";
 
-import { DeviceEventEmitter} from "react-native";
-import BashShareModule from "bash-share-module";
-import DebugSharePing from "@/src/bridges/DebugSharePing";
-// import { NativeModules } from "react-native";
-
-// const { BashShareModule } = NativeModules;
-
-console.log(
-  "[Debug] BashShareModule keys:",
-  BashShareModule ? Object.keys(BashShareModule) : []
-);
+import { InteractionManager, NativeModules } from "react-native";
+const { BashShareModule } = NativeModules;
 
 export default function RootLayout() {
   const colorScheme = (useGlobal((s: any) => s.themeMode) || "light") as ColorScheme;
   const activeFriend = useGlobal((s: any) => s.activeFriend);
   const activeConnectionId = useGlobal((s: any) => s.activeConnectionId);
-
-  const [fontsLoaded] = useFonts({
-    "LeckerliOne-Regular": require("@/src/assets/fonts/LeckerliOne-Regular.ttf"),
-    "MontserratExtraBold": require("@/src/assets/fonts/Montserrat-ExtraBold.ttf"),
-  });
-
-  const initialized = useGlobal((state: any) => state.initialized);
-  const init = useGlobal((state: any) => state.init);
-
-  useEffect(() => {
-    init();
-  }, [init]);
-
-  // Debug ping to BashShareModule
-  useEffect(() => {
-    if (BashShareModule?.ping) {
-      BashShareModule.ping().then((res: string) =>
-        console.log("[Debug] Ping result:", res)
-      );
-    } else {
-      console.warn("[Debug] BashShareModule.ping not available");
-    } 
-  }, []);
 
   const currentTheme = theme[colorScheme];  
 
@@ -70,6 +39,19 @@ export default function RootLayout() {
 
   const [lastPayloadKey, setLastPayloadKey] = useState<string | null>(null);
 
+
+  const [fontsLoaded] = useFonts({
+    "LeckerliOne-Regular": require("@/src/assets/fonts/LeckerliOne-Regular.ttf"),
+    "MontserratExtraBold": require("@/src/assets/fonts/Montserrat-ExtraBold.ttf"),
+  });
+
+  const initialized = useGlobal((state: any) => state.initialized);
+  const init = useGlobal((state: any) => state.init);
+
+  useEffect(() => {
+    init();
+  }, [init]);  
+
   const handleInboundShare = useCallback(
     (payload: InboundPayload | null) => {
       if (!payload) return;
@@ -80,58 +62,75 @@ export default function RootLayout() {
         return;
       }
 
-      console.log("[Inbound Share] Received:", payload);
+      // ✅ Ignore stale payloads before initialization
+      if (!initialized) {
+        console.log("[Inbound Share] Ignored payload during startup:", payload);
+        return;
+      }
+
+      console.log("[Inbound Share] Received fresh payload:", payload);
       setLastPayloadKey(key);
       setQueuedPayload(payload);
       setInboundShare(payload);
     },
-    [lastPayloadKey, setInboundShare]
+    [lastPayloadKey, setInboundShare, initialized]
   );
-
+  
   // ✅ Clear stale payloads on app restart
   useEffect(() => {
     clearInboundShare();
     setQueuedPayload(null);
     setLastPayloadKey(null);
   }, []);
-
   
-  // ✅ Handle queuedPayload correctly: keep until we actually deliver into Message
+  // ✅ Route only once activeFriend + activeConnectionId are ready
   useEffect(() => {
     if (!queuedPayload) return;
     if (!initialized || !fontsLoaded) return;
 
-    if (!activeFriend || !activeConnectionId) {
-      console.warn("[Inbound Share] No active chat context; redirecting to Friends");
-      router.replace("/(tabs)/Friends");
-      return; // keep queuedPayload until context is ready
+    if (activeFriend && activeConnectionId) {
+      console.log("[Inbound Share] Routing to Message with payload:", queuedPayload);
+      router.replace({
+        pathname: "/Message",
+        params: {
+          id: String(activeConnectionId),
+          friend: JSON.stringify(activeFriend),
+          fromShare: "1",
+        },
+      });
     }
-
-    // Route into Message when friend/connection is ready
-    router.replace({
-      pathname: "/Message",
-      params: {
-        id: String(activeConnectionId),
-        friend: JSON.stringify(activeFriend),
-        inbound: "1",
-        // payload: JSON.stringify(queuedPayload), // ✅ hand off payload
-        payload: JSON.stringify(
-          queuedPayload.kind === "text"
-            ? { kind: "text", payload: { text: queuedPayload.text } }
-            : queuedPayload
-        ),
-      },
-    });
-
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
 
+  // ✅ Explicitly fetch pending payload on mount
+  useEffect(() => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      try {
+        const pending = await BashShareModule.getPendingShare();
+        console.log("[RootLayout] poll getPendingShare result:", pending);
+        if (pending) {
+          const parsed = JSON.parse(pending);
+          let normalized;
+          if (parsed.kind === "text") {
+            normalized = { kind: "text", payload: { text: parsed.payload?.text || parsed.text || "" } };
+          } else {
+            normalized = parsed;
+          }
+          setInboundShare(normalized);
+          setQueuedPayload(normalized);          
+        }
+      } catch (e) {
+        console.log("[RootLayout] Error fetching pending share:", e);
+      }
+      if (++attempts > 30) clearInterval(interval); // ✅ stop after 30 tries
+    }, 1000); // poll every second
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
-      {/* ✅ Keep bridge always mounted at root */}
       <InboundShareBridge onShare={handleInboundShare} />
-      <DebugSharePing />
-
       <MenuProvider>
         <PaperProvider theme={currentTheme}>
           <>
@@ -147,7 +146,7 @@ export default function RootLayout() {
         </PaperProvider>
       </MenuProvider>
     </>
-  ); 
+  );
   
 }
 

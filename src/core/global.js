@@ -1,6 +1,5 @@
 // src/core/global.js
 import { create } from 'zustand'
-// import { GlobalState } from "./global"; // import the interface
 import api, { ADDRESS } from './api'
 import secure from './secure'
 import utils from './utils'
@@ -384,15 +383,18 @@ const useGlobal = create((set, get) => ({
             set((state) => ({ socketReady: true, socketConnecting: false }));
             
             socket.send(JSON.stringify({
-                source: 'request.list'
+                // source: 'request.list'
+                type: 'request.list'
             }))
 
             socket.send(JSON.stringify({
-                source: 'friend.list'
+                // source: 'friend.list'
+                type: 'friend.list'
             }))
 
             socket.send(JSON.stringify({ 
-                source: 'message.list'                 
+                // source: 'message.list'
+                type: 'message.list'                  
             }));
         }
 
@@ -477,7 +479,8 @@ const useGlobal = create((set, get) => ({
         if (query) {
             const socket = get().socket
             socket.send(JSON.stringify({
-                source: 'search',
+                // source: 'search',
+                type: 'search',
                 query: query                
             }))
         } else {
@@ -523,7 +526,8 @@ const useGlobal = create((set, get) => ({
         }
         //const socket = get().socket
         socket.send(JSON.stringify({
-            source: 'message.list',
+            // source: 'message.list',
+            type: 'message.list',
             connectionId,
             page
             //connectionId: connectionId,
@@ -585,7 +589,8 @@ const useGlobal = create((set, get) => ({
     messageType: (username) => {
         const socket = get().socket
         socket.send(JSON.stringify({
-            source: 'message.type',            
+            // source: 'message.type',  
+            type: 'message.type',          
             username: username
         })) 
     },
@@ -595,7 +600,8 @@ const useGlobal = create((set, get) => ({
         if (!socket || !Array.isArray(messageIds) || messageIds.length === 0) return;
         messageIds.forEach(id => {
             socket.send(JSON.stringify({
-            source: 'message.delete',
+            // source: 'message.delete',
+            type: 'message.delete',
             connectionId,
             messageId: id
             }));
@@ -612,7 +618,8 @@ const useGlobal = create((set, get) => ({
         const socket = get().socket;
         if (!socket || !Array.isArray(messageIds) || messageIds.length === 0) return;
         socket.send(JSON.stringify({
-            source: 'message.forward',
+            // source: 'message.forward',
+            type: 'message.forward',
             fromConnectionId,
             toConnectionId,
             messageIds
@@ -642,7 +649,8 @@ const useGlobal = create((set, get) => ({
     requestAccept: (username) => {
         const socket = get().socket
         socket.send(JSON.stringify({
-            source: 'request.accept',
+            // source: 'request.accept',
+            type: 'request.accept',
             username: username
         }))            
     },
@@ -650,7 +658,8 @@ const useGlobal = create((set, get) => ({
     requestConnect: (username) => {
         const socket = get().socket
         socket.send(JSON.stringify({
-            source: 'request.connect',
+            // source: 'request.connect',
+            type: 'request.connect',
             username: username
         }))            
     },
@@ -662,11 +671,15 @@ const useGlobal = create((set, get) => ({
     uploadThumbnail: (file) => {
         const socket = get().socket
         socket.send(JSON.stringify({
-            source: 'thumbnail',
+            // source: 'thumbnail',
+            type: 'thumbnail',
             base64: file.base64,
             filename: file.fileName
         }))
     }
 }))
+
+// ✅ Export the raw store object so it exists at runtime
+export const globalStore = useGlobal;
 
 export default useGlobal

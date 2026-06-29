@@ -1,4 +1,6 @@
 // app/index.tsx
+import "@/src/core/share-listener"; // ✅ attach listener immediately at app startup
+
 import useGlobal from '@/src/core/global';
 import { Redirect } from 'expo-router';
 

@@ -55,57 +55,58 @@ class ChatConsumers(WebsocketConsumer):
     def receive(self, text_data):
         # Receive message from Websocket
         data = json.loads(text_data)
-        data_source = data.get('source')
+        # data_source = data.get('source')
+        data_type = data.get('type')
         
         # Pretty print python dictionary
         print('receive', json.dumps(data, indent=2))
         
         # Get friend list
-        if data_source == 'friend.list':
+        if data_type == 'friend.list':
             self.receive_friend_list(data)
         
         # Message List
-        elif data_source == 'message.list':
+        elif data_type == 'message.list':
             self.receive_message_list(data)
         
         # Message has been sent
-        elif data_source == 'message.send':
+        elif data_type == 'message.send':
             self.receive_message_send(data)
         
         # User is typing a message
-        elif data_source == 'message.type':
+        elif data_type == 'message.type':
             self.receive_message_type(data)
         
         # Accept friend request
-        elif data_source == 'request.accept':
+        elif data_type == 'request.accept':
             self.receive_request_accept(data)
         
         # Make friend request
-        elif data_source == 'request.connect':
+        elif data_type == 'request.connect':
             self.receive_request_connect(data)
             
         # Get request list
-        elif data_source == 'request.list':
+        elif data_type == 'request.list':
             self.receive_request_list(data)
         
         # Search / Filter Users
-        elif data_source == 'search':
+        elif data_type == 'search':
             self.receive_search(data)
         
         # Thumbnail Upload
-        elif data_source == 'thumbnail':
+        elif data_type == 'thumbnail':
             self.receive_thumbnail(data)
         
         # Message Seen  
-        elif data_source == 'message.seen':
+        elif data_type == 'message.seen':
             self.receive_message_seen(data)
         
         # Message Delete
-        elif data_source == 'message.delete':
+        elif data_type == 'message.delete':
             self.receive_message_delete(data)
 
         # Message Forward
-        elif data_source == 'message.forward':
+        elif data_type == 'message.forward':
             self.receive_message_forward(data)
     
     

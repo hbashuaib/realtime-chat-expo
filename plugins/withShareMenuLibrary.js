@@ -236,6 +236,7 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.ReactInstanceEventListener
 import com.anonymous.realtimechatexpo.R
 import com.anonymous.realtimechatexpo.BuildConfig
+import com.anonymous.realtimechatexpo.BashShareQueue
 
 `,
       );
@@ -278,58 +279,25 @@ import com.anonymous.realtimechatexpo.BuildConfig
   // Always add a listener once per app start
   manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
       override fun onReactContextInitialized(readyContext: ReactContext) {
-        android.util.Log.e("BashChatTest", ">>> ReactContext ready; BashShareModule initialized")
-
-        // ✅ Initialize module only; do not emit here
-        readyContext.getNativeModule(BashShareModule::class.java)
-
+        android.util.Log.e("BashChatTest", ">>> ReactContext ready; flushing pending share")
+        val module = readyContext.getNativeModule(BashShareModule::class.java)
+        module?.flushPendingShareInternal()
         manager.removeReactInstanceEventListener(this)
       }
-  })
+  }) 
 
-  // ReactContext already active — only initialize module
-  val existingContext = manager.currentReactContext
-  if (existingContext != null) {
-    android.util.Log.e("BashChatTest", ">>> ReactContext already active; flushing pending share")
-    val immediate = pendingShareIntent ?: pendingShareStatic
-    if (immediate != null) {
-      forwardIntentToJS(existingContext, immediate)
-    }
-  }  
-  
   // ✅ Handle cold start share intent  
   val intent = getIntent()
   if (intent != null && intent.action == Intent.ACTION_SEND) {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")
-
-          // ✅ Notify JS if context is alive, or defer
-          val ctx = manager.currentReactContext
-          if (ctx != null && ctx.hasActiveReactInstance()) {
-              val module = ctx.getNativeModule(BashShareModule::class.java)
-              module?.notifyNewShareAvailable()
-              android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately (onCreate)")
-          } else {
-              manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-                  override fun onReactContextInitialized(reactContext: ReactContext) {
-                      val module = reactContext.getNativeModule(BashShareModule::class.java)
-                      module?.notifyNewShareAvailable()
-                      android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init (onCreate)")
-                      manager.removeReactInstanceEventListener(this)
-                  }
-              })
-          }
+          val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
+          BashShareQueue.setPending(json)
+          android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onCreate): $json")          
       }
-  }
-
-
-  // ❌ Removed emitShareIntentToJS call
-  // ✅ Only rely on listener + forwardIntentToJS when context is alive
-
+  }   
+ 
   super.onCreate(null)
 }`,
       );
@@ -369,52 +337,26 @@ import com.anonymous.realtimechatexpo.BuildConfig
       pendingShareIntent = intent
       pendingShareStatic = intent
 
-      // Build and enqueue JSON immediately so it’s ready when ReactContext initializes
+      // Build and enqueue JSON immediately
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
-          com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
+          val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
+          BashShareQueue.setPending(json)
           android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
-      } else {
-          // ✅ Handle non-text shares (image/audio/video/pdf/uri)
-          val streamUri: Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-              ?: intent.clipData?.let { if (it.itemCount > 0) it.getItemAt(0).uri else null }
+      } 
 
-          if (streamUri != null) {
-              val mime = applicationContext.contentResolver.getType(streamUri) ?: ""
-              val json = """{"kind":"uri","uri":${"$"}{escapeJson(streamUri.toString())},"mime":${"$"}{escapeJson(mime)}}"""
-              com.anonymous.realtimechatexpo.BashShareQueue.setPending(json)
-              android.util.Log.e("BashChatTest", ">>> Queued URI payload: $json")
-          }
-      }
-
-      // ✅ Always notify JS if ReactContext is alive, regardless of payload type
-      val ctx = manager.currentReactContext
-      if (ctx != null && ctx.hasActiveReactInstance()) {
-          val module = ctx.getNativeModule(BashShareModule::class.java)
-          module?.notifyNewShareAvailable()
-          android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired immediately")
+      // ✅ Immediately flush if ReactContext is already alive
+      val context = manager.currentReactContext
+      if (context != null && context.hasActiveCatalystInstance()) {
+          val module = context.getNativeModule(BashShareModule::class.java)
+          module?.flushPendingShareInternal()
+          android.util.Log.e("BashChatTest", ">>> Flushed pending share immediately onNewIntent")
       } else {
-          android.util.Log.e("BashChatTest", ">>> ReactContext not ready, deferring notify")
-          manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
-              override fun onReactContextInitialized(reactContext: ReactContext) {
-                  val module = reactContext.getNativeModule(BashShareModule::class.java)
-                  module?.notifyNewShareAvailable()
-                  android.util.Log.e("BashChatTest", ">>> notifyNewShareAvailable fired after ReactContext init")
-                  manager.removeReactInstanceEventListener(this)
-              }
-          })
+          android.util.Log.e("BashChatTest", ">>> ReactContext not ready, payload stays queued")
       }
-      
-      // ❌ Do not call forwardIntentToJS here
-      // ❌ Do not flush or consume queue here
-      // ✅ Leave payload in BashShareQueue until JS calls jsReady()      
   }  
-
-  // ❌ Helper removed completely
-  // ✅ Only keep forwardIntentToJS 
-
+  
   private fun forwardIntentToJS(context: ReactContext, intent: Intent) {
       val action = intent.action
       val type = intent.type ?: ""
@@ -447,7 +389,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
       if (!sharedText.isNullOrEmpty()) {
           val cleaned = normalizeText(sharedText)
-          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
+          val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
           emitJson(json)
           return
       }
@@ -487,7 +429,7 @@ import com.anonymous.realtimechatexpo.BuildConfig
 
       if (!anyText.isNullOrEmpty()) {
           val cleaned = normalizeText(stripUrls(anyText.toString()))
-          val json = """{"kind":"text","text":${"$"}{escapeJson(cleaned)}}"""
+          val json = """{"kind":"text","payload":{"text":${"$"}{escapeJson(cleaned)}}}"""
           emitJson(json)
           return
       }
@@ -744,6 +686,7 @@ function withRealtimeChatExpoApplicationKotlin(config) {
       const kotlinCode = `package com.anonymous.realtimechatexpo
 
 import android.app.Application
+import com.anonymous.realtimechatexpo.BashShareQueue
 
 class RealtimeChatExpoApplication : Application() {
     override fun onCreate() {

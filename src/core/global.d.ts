@@ -1,4 +1,6 @@
 // src/core/global.d.ts
+import { StoreApi } from "zustand";
+
 export interface GlobalState {
   inboundShare: any | null;
   setInboundShare: (payload: any) => void;
@@ -63,3 +65,6 @@ export interface GlobalState {
 // ✅ Declare the hook type and default export
 export declare const useGlobal: <T>(selector: (state: GlobalState) => T) => T;
 export default useGlobal;
+
+// ✅ Add declaration for the raw store object
+export declare const globalStore: StoreApi<GlobalState>;

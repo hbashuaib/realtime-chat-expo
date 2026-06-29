@@ -4,9 +4,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
 import { useEffect } from "react";
-// import BashShareModule, { BashShareEmitter } from "bash-share-module";
-// import { NativeModules } from "react-native";
-import { NativeModules, NativeEventEmitter } from "react-native";
+import { NativeModules, NativeEventEmitter, InteractionManager } from "react-native";
 
 const { BashShareModule } = NativeModules; // ✅ has jsReady, ping, etc.
 const BashShareEmitter = new NativeEventEmitter(BashShareModule); // ✅ for events
@@ -25,14 +23,14 @@ export default function InboundShareBridge({ onShare }) {
         if (parsed && typeof parsed === "object" && parsed.kind) {
           if (parsed.kind === "text") {
             const textValue = parsed.text || parsed.payload?.text || "";
-            payload = { kind: "text", text: String(textValue).trim() };
+            payload = { kind: "text", payload: { text: String(textValue).trim() } };
           } else {
             payload = { kind: "media", payload: parsed.payload || parsed };
           }
           console.log("[Inbound Share] Payload(parsed):", parsed);
         }
       } catch {
-        payload = { kind: "text", text: raw.trim() };
+        payload = { kind: "text", payload: { text: raw.trim() } };
         console.log("[Inbound Share] Payload(fallback-text):", payload);
       }
     } else if (Array.isArray(raw)) {
@@ -44,7 +42,7 @@ export default function InboundShareBridge({ onShare }) {
         console.log("[Inbound Share] Error building payload from array:", e);
       }
     } else if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
-      payload = { kind: "text", text: raw.nativeEvent.trim() };
+      payload = { kind: "text", payload: { text: raw.nativeEvent.trim() } };
       console.log("[Inbound Share] Payload(nativeEvent):", payload);
     } else if (raw && typeof raw === "object" && raw.kind) {
       // Already a normalized payload from native
@@ -77,53 +75,26 @@ export default function InboundShareBridge({ onShare }) {
       }
     }  
     
-  };
+  };  
+
+  // ✅ Only attach if module exists
+  if (!BashShareModule) {
+    console.warn("[Inbound Share] BashShareModule not available yet");
+    return null;
+  }
 
   useEffect(() => {
-    console.log("[Inbound Share] Bridge mounted");    
-    console.log("[Debug] BashShareModule keys:", Object.keys(BashShareModule));
-    console.log("[Debug] NativeModules.BashShareModule keys:", Object.keys(NativeModules.BashShareModule || {}));
-    
-    // 1. Attach listener once
-    const subscription = BashShareEmitter.addListener("onShareReceived", async (raw) => {
+    console.log("[Inbound Share] Bridge mounted");
+
+    // ✅ Listen only for warm-start events
+    const subscription = BashShareEmitter.addListener("onShareReceived", (raw) => {
       console.log("[Inbound Share] Event fired with raw:", raw, typeof raw);
-      try {
-        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-        await consume(parsed);
-      } catch (e) {
-        console.error("[Inbound Share] Failed to parse share payload:", e);
-        await consume(raw);
-      }
-    });
-
-    console.log("[Inbound Share] Listener attached at", Date.now());   
-
-    // 2. Initial handshake
-    BashShareModule?.jsReady?.().then(res => {
-      console.log("[Inbound Share] jsReady result:", res);
-      // ✅ Always call requestPendingShare after jsReady
-      BashShareModule?.requestPendingShare?.().then(r => {
-        console.log("[Inbound Share] initial requestPendingShare result:", r);
-      });
-    });
-
-    // 3. Listen for native signal
-    const newShareSub = BashShareEmitter.addListener("NewShareAvailable", () => {
-      console.log("[Inbound Share] NewShareAvailable received, requesting payload");
-      BashShareModule?.requestPendingShare?.().then(res => {
-        console.log("[Inbound Share] requestPendingShare result:", res);
-      });
+      consume(raw); // ✅ always normalize through consume()
     });
 
 
-    // 4. Clean up
-    return () => {
-      subscription.remove();
-      newShareSub.remove();
-    };
-    // ✅ Empty dependency array so this runs only once on mount
+    return () => subscription.remove();
   }, []);
-
 
   return null;
 }

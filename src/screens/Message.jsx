@@ -33,13 +33,17 @@ import VideoPlayer from "../components/VideoPlayer";
 import VoicePlayer from "../components/VoicePlayer";
 import WaveformView from "../components/WaveformView";
 import useGlobal from "../core/global";
+import { useRoute } from "@react-navigation/native";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import ChatHeader from "@/src/components/ChatHeader";
 import { theme } from "@/src/core/theme";
 import { router, useLocalSearchParams } from "expo-router";
 
-import BashShareModule from "bash-share-module";
+// import BashShareModule from "bash-share-module";
+
+import { NativeModules } from "react-native";
+const { BashShareModule } = NativeModules;
 
 // WhatsApp-like compact time (e.g., 14:07)
 function formatTimeShort(dateString) {
@@ -672,49 +676,84 @@ export default function MessageScreen() {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  // 🔎 Consume inbound payload passed via route params
+  const route = useRoute();   // ✅ define route  
+
+  // 🔎 Deliver inbound payload only when friend context is ready
   useEffect(() => {
-    if (payload) {
-      try {
-        const parsed = JSON.parse(payload);
-        console.log("[MessageScreen] Consuming inbound payload:", parsed);
+    if (!inboundShare) return;
+    if (route?.params?.fromShare !== "1") return;
+    if (!route?.params?.friend) return;
 
-        if (parsed.kind === "text") {
-          const text = (parsed.payload?.text || "").trim(); // ✅ always read from payload.text
-          if (text.length > 0) {
-            messageSend(connectionId, text);
-          }
-        } else if (parsed.kind === "media") {
-          messageSend(connectionId, "", parsed.payload);
-        }   
-
-        clearInboundShare(); // ✅ clear banner/global after sending
-        
-      } catch (e) {
-        console.error("[MessageScreen] Failed to parse inbound payload:", e);
-      }
+    // ✅ Guard against socket/connection not ready
+    if (!connectionId || !socket?.connected) {
+      console.warn("[MessageScreen] Socket not ready, delaying inbound delivery");
+      return;
     }
-  }, [payload, connectionId, messageSend, clearInboundShare]);
 
-  // 🔎 NEW: Consume inbound payload from global state
-  useEffect(() => {
-    if (inboundShare) {
-      console.log("[MessageScreen] Consuming inbound payload (global):", inboundShare);
+    console.log("[MessageScreen] Delivering inbound payload:", inboundShare);
 
+    const deliver = async () => {
       if (inboundShare.kind === "text") {
-        const text = (inboundShare.payload?.text || inboundShare.text || "").trim();
+        const text = (inboundShare.payload?.text || "").trim();
         if (text.length > 0) {
           messageSend(connectionId, text);
+          clearInboundShare();
+          await BashShareModule?.consumePendingShare?.();
         }
       } else if (inboundShare.kind === "media") {
         messageSend(connectionId, "", inboundShare.payload);
+        clearInboundShare();
+        await BashShareModule?.consumePendingShare?.();
       }
+    };
 
-      clearInboundShare();              // ✅ clear global state
-      BashShareModule?.consumePendingShare?.(); // ✅ clear native queue
-      
-    }
-  }, [inboundShare, connectionId, messageSend, clearInboundShare]);
+    deliver();
+  }, [inboundShare, connectionId, socket?.connected, messageSend, clearInboundShare, route?.params]);
+
+
+  // 🔎 Consume inbound payload passed via route params
+  // useEffect(() => {
+  //   if (payload) {
+  //     try {
+  //       const parsed = JSON.parse(payload);
+  //       console.log("[MessageScreen] Consuming inbound payload:", parsed);
+
+  //       if (parsed.kind === "text") {
+  //         const text = (parsed.payload?.text || "").trim(); // ✅ always read from payload.text
+  //         if (text.length > 0) {
+  //           messageSend(connectionId, text);
+  //         }
+  //       } else if (parsed.kind === "media") {
+  //         messageSend(connectionId, "", parsed.payload);
+  //       }   
+
+  //       clearInboundShare(); // ✅ clear banner/global after sending
+        
+  //     } catch (e) {
+  //       console.error("[MessageScreen] Failed to parse inbound payload:", e);
+  //     }
+  //   }
+  // }, [payload, connectionId, messageSend, clearInboundShare]);
+
+  // // 🔎 Consume inbound payload from global state only when friend is selected
+  // useEffect(() => {
+  //   if (inboundShare && route?.params?.fromShare === "1" && route?.params?.friend) {
+  //     console.log("[MessageScreen] Consuming inbound payload (global with friend):", inboundShare);
+
+  //     if (inboundShare.kind === "text") {
+  //       const text = (inboundShare.payload?.text || "").trim();
+  //       if (text.length > 0) {
+  //         messageSend(connectionId, text);
+  //       }
+  //     } else if (inboundShare.kind === "media") {
+  //       messageSend(connectionId, "", inboundShare.payload);
+  //     }
+
+  //     clearInboundShare(); // ✅ clear after sending
+  //     BashShareModule?.getAndConsumePendingShare?.();
+  //   }
+  // }, [inboundShare, connectionId, messageSend, clearInboundShare, route?.params]);
+
 
 
   // // 🔎 Consume pending share when screen mounts
