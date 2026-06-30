@@ -7,6 +7,8 @@ package com.anonymous.realtimechatexpo;
       import android.content.ClipData;
       import android.util.Log;
       import com.facebook.react.ReactApplication;
+      import com.facebook.react.bridge.ReactContext;         
+      import com.anonymous.realtimechatexpo.BashShareModule; 
       
 
       public class ShareMenuActivity extends AppCompatActivity {
@@ -60,10 +62,34 @@ package com.anonymous.realtimechatexpo;
                     String json = "{\"kind\":\"text\",\"payload\":{\"text\":" + escapeJson(text) + "}}";
                     BashShareQueue.setPending(json);
                     Log.e("BashChatTest", ">>> Queued text payload: " + text);
+
+                    // Force flush if ReactContext is alive
+                    ReactContext context = ((ReactApplication) getApplication()).getReactNativeHost().getReactInstanceManager().getCurrentReactContext();
+                    if (context != null && context.hasActiveCatalystInstance()) {
+                        BashShareModule module = context.getNativeModule(BashShareModule.class);
+                        if (module != null) {
+                            module.flushPendingShareInternal();
+                            Log.e("BashChatTest", ">>> ShareMenuActivity forced flush after enqueue");
+                        } else {
+                            Log.e("BashChatTest", ">>> BashShareModule not yet available in ShareMenuActivity");
+                        }
+                    }
                 } else if (stream != null) {
                     String json = "{\"kind\":\"image\",\"payload\":{\"uri\":" + escapeJson(stream.toString()) + ",\"mime\":" + escapeJson(mime) + "}}";
                     BashShareQueue.setPending(json);
                     Log.e("BashChatTest", ">>> Queued image payload: " + stream);
+
+                    // Force flush if ReactContext is alive
+                    ReactContext context = ((ReactApplication) getApplication()).getReactNativeHost().getReactInstanceManager().getCurrentReactContext();
+                    if (context != null && context.hasActiveCatalystInstance()) {
+                        BashShareModule module = context.getNativeModule(BashShareModule.class);
+                        if (module != null) {
+                            module.flushPendingShareInternal();
+                            Log.e("BashChatTest", ">>> ShareMenuActivity forced flush after enqueue");
+                        } else {
+                            Log.e("BashChatTest", ">>> BashShareModule not yet available in ShareMenuActivity");
+                        }
+                    }
                 }                
             } catch (Exception e) {
                 Log.e("BashChatTest", "!!! Failed to queue payload: " + e.getMessage(), e);

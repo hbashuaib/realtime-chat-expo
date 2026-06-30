@@ -42,9 +42,16 @@ class MainActivity : ReactActivity() {
   // Always add a listener once per app start
   manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
       override fun onReactContextInitialized(readyContext: ReactContext) {
-        android.util.Log.e("BashChatTest", ">>> ReactContext ready; flushing pending share")
+        android.util.Log.e("BashChatTest", ">>> ReactContext ready; attempting flush")
         val module = readyContext.getNativeModule(BashShareModule::class.java)
-        module?.flushPendingShareInternal()
+        if (module != null) {
+            module.flushPendingShareInternal()
+            pendingShareIntent = null
+            pendingShareStatic = null
+            android.util.Log.e("BashChatTest", ">>> Flush after ReactContext init completed")
+        } else {
+            android.util.Log.e("BashChatTest", ">>> BashShareModule was null at ReactContext init")
+        }
         manager.removeReactInstanceEventListener(this)
       }
   }) 
@@ -136,20 +143,7 @@ class MainActivity : ReactActivity() {
           android.util.Log.e("BashChatTest", ">>> Flushed pending share immediately onNewIntent")
       } else {
           android.util.Log.e("BashChatTest", ">>> ReactContext not ready, payload stays queued")
-      }
-
-      // ✅ Only queue the intent
-      // pendingShareIntent = intent
-      // pendingShareStatic = intent
-
-      // Build and enqueue JSON immediately
-      // val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-      // if (!sharedText.isNullOrEmpty()) {
-      //     val cleaned = sharedText.trim().trim('"').trim('“').trim('”').trim('\'')
-      //     val json = """{"kind":"text","payload":{"text":${escapeJson(cleaned)}}}"""
-      //     BashShareQueue.setPending(json)
-      //     android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue (onNewIntent): $json")
-      // } 
+      }      
       
   }  
   
@@ -164,21 +158,31 @@ class MainActivity : ReactActivity() {
 
       fun emitJson(json: String) {
           try {
-            // 🔎 Log queue state before enqueue
-            val beforePeek = BashShareQueue.peek()
-            android.util.Log.e("BashChatTest", ">>> forwardIntentToJS peek before enqueue: $beforePeek")
+              // ✅ Directly set pending without peeking
+              BashShareQueue.setPending(json)
+              android.util.Log.e("BashChatTest", ">>> forwardIntentToJS queued JSON into BashShareQueue: $json")
 
-            BashShareQueue.setPending(json)
-            android.util.Log.e("BashChatTest", ">>> Queued JSON into BashShareQueue: $json")
-
-            // 🔎 Log queue state after enqueue
-            val afterPeek = BashShareQueue.peek()
-            android.util.Log.e("BashChatTest", ">>> forwardIntentToJS peek after enqueue: $afterPeek")
-        } catch (e: Exception) {
-            android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
-        }
-          pendingShareIntent = intent
-          pendingShareStatic = intent
+              // ✅ Immediately flush and consume if JS is alive
+              val context = (application as ReactApplication).reactNativeHost.reactInstanceManager.currentReactContext
+              if (context != null && context.hasActiveCatalystInstance()) {
+                  val module = context.getNativeModule(BashShareModule::class.java)
+                  module?.flushPendingShareInternal() // ✅ use @ReactMethod flush with Promise
+                  android.util.Log.e("BashChatTest", ">>> forwardIntentToJS flushed and consumed immediately")
+              } else {
+                  // ✅ schedule a delayed flush once ReactContext is ready
+                  val manager = (application as ReactApplication).reactNativeHost.reactInstanceManager
+                  manager.addReactInstanceEventListener(object : ReactInstanceEventListener {
+                      override fun onReactContextInitialized(readyContext: ReactContext) {
+                          val module = readyContext.getNativeModule(BashShareModule::class.java)
+                          module?.flushPendingShareInternal()
+                          android.util.Log.e("BashChatTest", ">>> forwardIntentToJS flushed after ReactContext init")
+                          manager.removeReactInstanceEventListener(this)
+                      }
+                  })
+              }              
+          } catch (e: Exception) {
+              android.util.Log.e("BashChatTest", "!!! Failed to queue JSON: ${e.message}", e)
+          }             
       }
 
       // --- Text via EXTRA_TEXT ---
@@ -187,6 +191,9 @@ class MainActivity : ReactActivity() {
           val cleaned = normalizeText(sharedText)
           val json = """{"kind":"text","payload":{"text":${escapeJson(cleaned)}}}"""
           emitJson(json)
+          // ✅ safe here, intent is in scope
+          pendingShareIntent = intent
+          pendingShareStatic = intent
           return
       }
 
@@ -214,6 +221,9 @@ class MainActivity : ReactActivity() {
           }
 
           emitJson(json)
+          // ✅ safe here, intent is in scope
+          pendingShareIntent = intent
+          pendingShareStatic = intent
           return
       }
 
@@ -227,6 +237,9 @@ class MainActivity : ReactActivity() {
           val cleaned = normalizeText(stripUrls(anyText.toString()))
           val json = """{"kind":"text","payload":{"text":${escapeJson(cleaned)}}}"""
           emitJson(json)
+          // ✅ safe here, intent is in scope
+          pendingShareIntent = intent
+          pendingShareStatic = intent
           return
       }
 
@@ -234,6 +247,9 @@ class MainActivity : ReactActivity() {
           val mime = applicationContext.contentResolver.getType(anyUri) ?: type
           val json = """{"kind":"uri","uri":${escapeJson(anyUri.toString())},"mime":${escapeJson(mime)}}"""
           emitJson(json)
+          // ✅ safe here, intent is in scope
+          pendingShareIntent = intent
+          pendingShareStatic = intent
           return
       }
   }

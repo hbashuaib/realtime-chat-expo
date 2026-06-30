@@ -8,47 +8,65 @@ const { BashShareModule } = NativeModules;
 
 // ✅ Only attach if module exists
 if (BashShareModule) {
-  console.log("[Global Share Listener] BashShareModule detected"); // ✅ Debugging step
+  console.log("[Global Share Listener] BashShareModule detected");
 
   const BashShareEmitter = new NativeEventEmitter(BashShareModule);
 
+  // ✅ Event listener for live shares
   BashShareEmitter.addListener("onShareReceived", (res) => {
-    console.log("[Global Share Listener] onShareReceived received:", res);
-
-    try {
-      const parsed = JSON.parse(res);
-      globalStore.getState().setInboundShare(
-        parsed.kind === "text"
-          ? { kind: "text", payload: { text: parsed.payload?.text || parsed.text || "" } }
-          : parsed
-      );
-    } catch {
-      globalStore.getState().setInboundShare({ kind: "text", payload: { text: String(res) } });
+    if (!res || res === "emitted" || res === "nothing") {
+      console.log("[Global Share Listener] Ignored marker string:", res);
+      return;
     }
 
-    // ❌ Do not consume native queue here
-    // ✅ Let MessageScreen call getAndConsumePendingShare() after sending
+    console.log("[Global Share Listener] onShareReceived fired with raw:", res, typeof res);
+
+    let payload;
+    try {
+      const parsed = JSON.parse(res);
+      payload =
+        parsed.kind === "text"
+          ? { kind: "text", payload: { text: parsed.payload?.text || parsed.text || "" } }
+          : parsed;
+      console.log("[Global Share Listener] Parsed payload:", parsed);
+    } catch {
+      payload = { kind: "text", payload: { text: String(res) } };
+      console.log("[Global Share Listener] Fallback text payload:", payload);
+    }
+
+    // ✅ Persist inboundShare until MessageScreen consumes it
+    globalStore.getState().setInboundShare(payload);
+    console.log("[Global Share Listener] InboundShare set in global store");
   });
 
-  // ✅ Startup peek only checks, does not set inboundShare again
+  // ✅ Startup flush for cold start
   (async () => {
     try {
-      const res = await BashShareModule.peekPendingShare?.();
-      console.log("[Global Share Listener] startup peek result:", res);
-      if (res) {
+      console.log("[Global Share Listener] Performing startup flushPendingShare...");
+      const res = await BashShareModule.flushPendingShare?.();
+      console.log("[Global Share Listener] startup flush result:", res, typeof res);
+
+      if (res && res !== "nothing" && res !== "emitted") {
+        let payload;
         try {
           const parsed = JSON.parse(res);
-          globalStore.getState().setInboundShare(
+          payload =
             parsed.kind === "text"
               ? { kind: "text", payload: { text: parsed.payload?.text || parsed.text || "" } }
-              : parsed
-          );
+              : parsed;
+          console.log("[Global Share Listener] Parsed startup payload:", parsed);
         } catch {
-          globalStore.getState().setInboundShare({ kind: "text", payload: { text: String(res) } });
+          payload = { kind: "text", payload: { text: String(res) } };
+          console.log("[Global Share Listener] Startup fallback text payload:", payload);
         }
+
+        globalStore.getState().setInboundShare(payload);
+        console.log("[Global Share Listener] Startup inboundShare set in global store");
+      } else {
+        console.log("[Global Share Listener] No usable pending share at startup");
       }
     } catch (e) {
-      console.warn("[Global Share Listener] peekPendingShare failed:", e);
+      console.warn("[Global Share Listener] flushPendingShare threw exception:", e);
     }
   })();
 } else {

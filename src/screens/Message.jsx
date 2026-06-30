@@ -678,12 +678,16 @@ export default function MessageScreen() {
 
   const route = useRoute();   // ✅ define route  
 
-  // 🔎 Deliver inbound payload only when friend context is ready
+  // Effect to buffer inboundShare until socket is ready
   useEffect(() => {
-    if (!inboundShare) return;
-    if (route?.params?.fromShare !== "1") return;
-    if (!route?.params?.friend) return;
-
+    if (!inboundShare) {
+      console.log("[MessageScreen] No inboundShare present, skipping effect");
+      return;
+    }
+    if (!route?.params?.friend) {
+      console.log("[MessageScreen] No friend param in route, skipping");
+      return;
+    }
     if (!connectionId) {
       console.warn("[MessageScreen] No connectionId yet, waiting...");
       return;
@@ -691,31 +695,70 @@ export default function MessageScreen() {
 
     if (!socket?.connected) {
       console.warn("[MessageScreen] Socket not ready, will retry when connected");
-      // ✅ Do not clear inboundShare here — wait until socket is ready
       return;
     }
 
-    console.log("[MessageScreen] Delivering inbound payload:", inboundShare);
+    console.log("[MessageScreen] Delivering inbound payload now:", inboundShare);
 
     const deliver = async () => {
-      if (inboundShare.kind === "text") {
-        const text = (inboundShare.payload?.text || "").trim();
-        if (text.length > 0) {
-          messageSend(connectionId, text);
-          clearInboundShare();                // ✅ clears banner
-          await BashShareModule?.consumePendingShare?.(); // ✅ clears native queue
+      try {
+        if (inboundShare.kind === "text") {
+          const text = (inboundShare.payload?.text || "").trim();
+          if (text.length > 0) {
+            messageSend(connectionId, text);
+            console.log("[MessageScreen] Sent text payload");
+          }
+        } else if (inboundShare.kind === "media") {
+          messageSend(connectionId, "", inboundShare.payload);
+          console.log("[MessageScreen] Sent media payload");
         }
-      } else if (inboundShare.kind === "media") {
-        messageSend(connectionId, "", inboundShare.payload);
+
         clearInboundShare();
+        console.log("[MessageScreen] Cleared inboundShare after delivery");
+
         await BashShareModule?.consumePendingShare?.();
+        console.log("[MessageScreen] Native queue consumed after delivery");
+      } catch (err) {
+        console.error("[MessageScreen] Exception delivering inbound share:", err);
       }
     };
 
     deliver();
-  }, [inboundShare, connectionId, socket?.connected, route?.params]);
+  }, [inboundShare, connectionId, socket?.connected]);
 
+  // Effect to retry once socket connects
+  useEffect(() => {
+    if (socket?.connected && inboundShare && route?.params?.friend) {
+      console.log("[MessageScreen] Retrying buffered inboundShare after socket connected:", inboundShare);
 
+      const retryDeliver = async () => {
+        try {
+          if (inboundShare.kind === "text") {
+            const text = (inboundShare.payload?.text || "").trim();
+            if (text.length > 0) {
+              messageSend(connectionId, text);
+              console.log("[MessageScreen] Retried text payload");
+            }
+          } else if (inboundShare.kind === "media") {
+            messageSend(connectionId, "", inboundShare.payload);
+            console.log("[MessageScreen] Retried media payload");
+          }
+
+          clearInboundShare();
+          console.log("[MessageScreen] Cleared inboundShare after retry");
+
+          await BashShareModule?.consumePendingShare?.();
+          console.log("[MessageScreen] Native queue consumed after retry");
+        } catch (err) {
+          console.error("[MessageScreen] Exception retrying inbound share:", err);
+        }
+      };
+
+      retryDeliver();
+    }
+  }, [socket?.connected, inboundShare, connectionId]);
+
+  
   // 🔎 Consume inbound payload passed via route params
   // useEffect(() => {
   //   if (payload) {

@@ -100,14 +100,13 @@ export default function RootLayout() {
       });
     }
   }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
-
-  // ✅ Explicitly fetch pending payload on mount
+  
+  // ✅ Fetch pending payload once on mount, not forever
   useEffect(() => {
-    let attempts = 0;
-    const interval = setInterval(async () => {
+    const checkOnce = async () => {
       try {
         const pending = await BashShareModule.getPendingShare();
-        console.log("[RootLayout] poll getPendingShare result:", pending);
+        console.log("[RootLayout] initial getPendingShare result:", pending);
         if (pending) {
           const parsed = JSON.parse(pending);
           let normalized;
@@ -117,15 +116,14 @@ export default function RootLayout() {
             normalized = parsed;
           }
           setInboundShare(normalized);
-          setQueuedPayload(normalized);          
+          setQueuedPayload(normalized);
         }
       } catch (e) {
         console.log("[RootLayout] Error fetching pending share:", e);
       }
-      if (++attempts > 30) clearInterval(interval); // ✅ stop after 30 tries
-    }, 1000); // poll every second
+    };
 
-    return () => clearInterval(interval);
+    checkOnce(); // ✅ run once at startup
   }, []);
 
   return (

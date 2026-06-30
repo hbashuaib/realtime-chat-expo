@@ -18,6 +18,10 @@ export default function InboundShareBridge({ onShare }) {
 
     let payload;
     if (typeof raw === "string") {
+      if (raw === "emitted" || raw === "nothing") {
+        console.log("[Inbound Share] Ignored marker string from native:", raw);
+        return; // ✅ skip markers, do not treat them as payload
+      }
       try {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object" && parsed.kind) {
@@ -58,21 +62,38 @@ export default function InboundShareBridge({ onShare }) {
       }
     }
 
-    if (!payload) return;
+    if (!payload) {
+      console.log("[Inbound Share] No valid payload parsed, skipping");
+      return;
+    }
 
     // Track last timestamp instead of payload content
     const now = Date.now();
     if (lastKey && now - lastKey < 2000) {
-      console.log("[Inbound Share] Ignored rapid duplicate");
+      console.log("[Inbound Share] Ignored rapid duplicate within 2s window");
     } else {
       lastKey = now;
+      console.log("[Inbound Share] Delivering payload:", payload);
+      
       if (typeof onShare === "function") {
-        console.log("[Inbound Share] Routed payload to onShare:", payload);
+        console.log("[Inbound Share] Routed payload to onShare callback:", payload);
         onShare(payload);
       } else {
         console.log("[Inbound Share] Routed payload to global store:", payload);
         setInboundShare(payload);
       }
+
+      // ✅ Clear native queue, but leave JS store intact
+      try {
+        console.log("[Inbound Share] Calling consumePendingShare() to clear native queue");
+        await BashShareModule?.consumePendingShare?.();
+        console.log("[Inbound Share] Native queue consumed successfully");
+      } catch (e) {
+        console.log("[Inbound Share] Error consuming native queue:", e);
+      }
+
+      // ⚠️ Do NOT clear inboundShare here.
+      // Let MessageScreen consume it via useEffect and then call clearInboundShare().
     }  
     
   };  
@@ -86,14 +107,16 @@ export default function InboundShareBridge({ onShare }) {
   useEffect(() => {
     console.log("[Inbound Share] Bridge mounted");
 
-    // ✅ Listen only for warm-start events
+    // ✅ Only listen for live events; startup flush handled in share-listener.js
     const subscription = BashShareEmitter.addListener("onShareReceived", (raw) => {
       console.log("[Inbound Share] Event fired with raw:", raw, typeof raw);
-      consume(raw); // ✅ always normalize through consume()
+      consume(raw);
     });
 
-
-    return () => subscription.remove();
+    return () => {
+      console.log("[Inbound Share] Bridge unmounted, removing listener");
+      subscription.remove();
+    };
   }, []);
 
   return null;
