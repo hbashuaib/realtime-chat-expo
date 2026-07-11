@@ -5,7 +5,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Animated,
   Dimensions,
@@ -39,6 +39,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import ChatHeader from "@/src/components/ChatHeader";
 import { theme } from "@/src/core/theme";
 import { router, useLocalSearchParams } from "expo-router";
+import { shallow } from 'zustand/shallow';
 
 // import BashShareModule from "bash-share-module";
 
@@ -677,88 +678,212 @@ export default function MessageScreen() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const route = useRoute();   // ✅ define route  
-
-  // Effect to buffer inboundShare until socket is ready
-  useEffect(() => {
-    if (!inboundShare) {
-      console.log("[MessageScreen] No inboundShare present, skipping effect");
-      return;
-    }
-    if (!route?.params?.friend) {
-      console.log("[MessageScreen] No friend param in route, skipping");
-      return;
-    }
-    if (!connectionId) {
-      console.warn("[MessageScreen] No connectionId yet, waiting...");
-      return;
-    }
-
-    if (!socket?.connected) {
-      console.warn("[MessageScreen] Socket not ready, will retry when connected");
-      return;
-    }
-
-    console.log("[MessageScreen] Delivering inbound payload now:", inboundShare);
-
-    const deliver = async () => {
-      try {
-        if (inboundShare.kind === "text") {
-          const text = (inboundShare.payload?.text || "").trim();
-          if (text.length > 0) {
-            messageSend(connectionId, text);
-            console.log("[MessageScreen] Sent text payload");
-          }
-        } else if (inboundShare.kind === "media") {
-          messageSend(connectionId, "", inboundShare.payload);
-          console.log("[MessageScreen] Sent media payload");
-        }
-
-        clearInboundShare();
-        console.log("[MessageScreen] Cleared inboundShare after delivery");
-
-        await BashShareModule?.consumePendingShare?.();
-        console.log("[MessageScreen] Native queue consumed after delivery");
-      } catch (err) {
-        console.error("[MessageScreen] Exception delivering inbound share:", err);
-      }
-    };
-
-    deliver();
-  }, [inboundShare, connectionId, socket?.connected]);
-
-  // Effect to retry once socket connects
-  useEffect(() => {
-    if (socket?.connected && inboundShare && route?.params?.friend) {
-      console.log("[MessageScreen] Retrying buffered inboundShare after socket connected:", inboundShare);
-
-      const retryDeliver = async () => {
-        try {
-          if (inboundShare.kind === "text") {
-            const text = (inboundShare.payload?.text || "").trim();
-            if (text.length > 0) {
-              messageSend(connectionId, text);
-              console.log("[MessageScreen] Retried text payload");
-            }
-          } else if (inboundShare.kind === "media") {
-            messageSend(connectionId, "", inboundShare.payload);
-            console.log("[MessageScreen] Retried media payload");
-          }
-
-          clearInboundShare();
-          console.log("[MessageScreen] Cleared inboundShare after retry");
-
-          await BashShareModule?.consumePendingShare?.();
-          console.log("[MessageScreen] Native queue consumed after retry");
-        } catch (err) {
-          console.error("[MessageScreen] Exception retrying inbound share:", err);
-        }
-      };
-
-      retryDeliver();
-    }
-  }, [socket?.connected, inboundShare, connectionId]);
-
+  const [inputValue, setInputValue] = useState("");   
   
+  // const messageList = useGlobal((state) => state.messageList); 
+  // const messagesByConnection = useGlobal((s) => s.messagesByConnection || {});
+  // const messagesList = messagesByConnection[activeConnectionId] || [];
+  // const chatMessages = messagesByConnection[activeConnectionId] || [];
+  // const chatMessages = messagesList;
+  // const messagesPage = useGlobal((s) => s.messagesPage);   // ✅ select it
+  // const messagesPage = useGlobal((s) => s.messagesPage);
+  
+  const loadMoreMessages = useGlobal((state) => state.loadMoreMessages);
+
+  const messageListFn = useGlobal((s) => s.messageList); 
+  const messageType = useGlobal((state) => state.messageType);   
+  const socketConnect = useGlobal((state) => state.socketConnect);
+  const messagesUsername = useGlobal((s) => s.messagesUsername);
+  const messagesConnectionId = useGlobal((s) => s.messagesConnectionId);
+  const socket = useGlobal((s) => s.socket);
+  const socketReady = useGlobal((s) => s.socketReady);
+  const setMessagesUsername = useGlobal((s) => s.setMessagesUsername);
+  const setMessagesConnectionId = useGlobal((s) => s.setMessagesConnectionId);  
+  const addInboundMessage = useGlobal((s) => s.addInboundMessage);
+  const messageSend = useGlobal((s) => s.messageSend);  
+
+  // ✅ Select per-connection messages
+  const activeConnectionId = useGlobal((s) => s.activeConnectionId);   // ✅ select the right field  
+  const messagesList = useGlobal((s) => s.messagesList || []);   // ✅ shortcut maintained by store  
+
+  // ✅ Select the count of messages for the active connection
+  const chatMessagesCount = useGlobal(
+    (s) => (s.messagesByConnection?.[activeConnectionId]?.length ?? 0)
+  );
+
+  // Define a stable empty array once
+  const EMPTY_ARRAY = [];
+  
+  // ✅ Subscribe safely without creating new arrays
+  const chatMessages = useGlobal(
+    (s) => s.messagesByConnection?.[activeConnectionId] || EMPTY_ARRAY,
+    shallow
+  );
+
+  // ✅ Function to request messages
+  const requestMessages = useGlobal((s) => s.loadMoreMessages);
+
+  // const chatMessages = isActiveChat ? messagesList : [];
+  const groupedSections = useMemo(
+    () => groupMessagesByDay(chatMessages),
+    [chatMessagesCount]
+  );
+
+  // ✅ Option 2: initialize slice from global list if empty
+  useEffect(() => {
+    const state = useGlobal.getState();
+
+    console.log("[Message.jsx] slice init check:",
+      "connId:", activeConnectionId,
+      "global list length:", messagesList.length,
+      "slice length:", useGlobal.getState().messagesByConnection?.[activeConnectionId]?.length || 0);
+
+    if (
+      activeConnectionId &&
+      (!state.messagesByConnection?.[activeConnectionId] ||
+        state.messagesByConnection[activeConnectionId].length === 0) &&
+      state.messagesList.length > 0
+    ) {
+      console.log("[Message.jsx] Initializing slice from global list for connId:", activeConnectionId);
+      useGlobal.setState({
+        messagesByConnection: {
+          ...state.messagesByConnection,
+          [activeConnectionId]: [...state.messagesList], // force copy
+        },
+      });
+    }
+  }, [activeConnectionId, messagesList.length]);
+
+  useEffect(() => {
+    console.log("[Debug - Inbound] socket object changed:", socket);
+  }, [socket]);
+
+  // ✅ Initialize store context from route params when screen mounts
+  useEffect(() => {
+    try {
+      const friendParam = route?.params?.friend;
+      const friend = typeof friendParam === "string" ? JSON.parse(friendParam) : friendParam;
+      const connId = route?.params?.id ? Number(route.params.id) : null;
+
+      if (friend?.username && connId) {
+        // ✅ set each field independently if missing
+        if (!messagesUsername) {
+          setMessagesUsername(friend.username);
+        }
+        if (!messagesConnectionId) {
+          setMessagesConnectionId(connId);
+        }
+        if (!activeConnectionId) {
+          setActiveConnectionId(connId);
+        }
+        console.log("[Message] Context initialized from route params:",
+                    "username=", friend.username,
+                    "connId=", connId);
+      } else {
+        console.warn("[Message] Missing route params, cannot initialize context");
+      }
+    } catch (err) {
+      console.error("[Message] Failed to parse friend params:", err);
+    }
+  }, []);   // run once on mount
+
+  // ✅ Ensure store switches to the route's connId
+  useEffect(() => {
+    console.log("[Message.jsx] Store updated:",
+      "activeConnectionId:", useGlobal.getState().activeConnectionId,
+      "messagesConnectionId:", useGlobal.getState().messagesConnectionId,
+      "messagesUsername:", useGlobal.getState().messagesUsername);
+
+    if (params?.id) {
+      const connId = Number(params.id);
+      console.log("[Message.jsx] Forcing activeConnectionId/messagesConnectionId to:", connId);
+      useGlobal.setState((state) => ({
+        ...state,
+        activeConnectionId: connId,
+        messagesConnectionId: connId,
+        messagesUsername: params?.friend?.username || state.messagesUsername,
+        activeFriend: params?.friend ? JSON.parse(params.friend) : state.activeFriend,
+      }));
+    }
+  }, [params?.id, params?.friend]);
+
+
+  // ✅ Helper function
+  function deliverInboundPayload(payload) {
+    try {
+      const effectiveConnectionId =
+        messagesConnectionId || connectionId || route?.params?.id;
+
+      if (payload.kind === "text") {
+        const text = (payload.payload?.text || "").trim();
+        if (text.length > 0) {
+          setInputValue(text);
+
+          console.log("[Debug - Inbound] Attempting delivery. socketReady:", socketReady,
+                      "socket=", socket,
+                      "messagesUsername=", messagesUsername,
+                      "messagesConnectionId=", messagesConnectionId,
+                      "connId=", effectiveConnectionId);
+
+          const username = messagesUsername || route?.params?.friend?.username;
+          const connId = messagesConnectionId || connectionId || route?.params?.id;
+
+          if (socketReady && socket && connId && username) {
+            // ✅ Insert inbound share into local list immediately
+            addInboundMessage(connId, text);
+
+            // Then send over socket
+            messageSend(connId, text);
+            console.log("[MessageScreen - Inbound] Sent text payload for user:", username);
+          } else {
+            console.warn("[MessageScreen - Inbound] Skipped delivery. Context not ready...");
+          }
+        }
+      } else if (payload.kind === "media") {
+        if (socketReady && socket && effectiveConnectionId && messagesUsername && messagesConnectionId) {
+          messageSend(effectiveConnectionId, "", payload.payload);
+          console.log("[MessageScreen - Inbound] Sent media payload for user:", messagesUsername);
+        } else {
+          console.warn("[MessageScreen - Inbound] Skipped media delivery. Context not ready.");
+        }
+      }
+    } catch (err) {
+      console.error("[MessageScreen - Inbound] Exception delivering inbound share:", err);
+    }
+  }
+
+  // Track whether current inboundShare has been delivered
+  const hasDeliveredInbound = useRef(false);
+
+  // Reset flag whenever a new inboundShare arrives
+  useEffect(() => {
+    if (inboundShare) {
+      hasDeliveredInbound.current = false;
+    }
+  }, [inboundShare]);
+
+  // Effect: consume inbound share once friend context and socket are ready
+  useEffect(() => {
+    if (!inboundShare) return;
+
+    if (!hasDeliveredInbound.current &&
+        messagesUsername &&
+        messagesConnectionId &&
+        socketReady &&
+        socket) {
+      console.log("[MessageScreen - Inbound] Delivering inbound payload once:", inboundShare,
+                  "username:", messagesUsername, "connId=", messagesConnectionId);
+
+      // ✅ Only send over socket here
+      messageSend(messagesConnectionId, inboundShare.payload.text);
+
+      // ✅ Optimistic insert handled separately in responseMessageList
+      hasDeliveredInbound.current = true;
+      clearInboundShare();
+    }
+  }, [inboundShare, messagesUsername, messagesConnectionId, socketReady, socket]);
+
+
   // 🔎 Consume inbound payload passed via route params
   // useEffect(() => {
   //   if (payload) {
@@ -912,7 +1037,7 @@ export default function MessageScreen() {
     clearSelection();
   }
 
-  const messagesList = useGlobal((state) => state.messagesList);  
+  // const messagesList = useGlobal((state) => state.messagesList);  
   const addMessage = useGlobal((state) => state.addMessage);
   const params = useLocalSearchParams();
 
@@ -1026,14 +1151,14 @@ export default function MessageScreen() {
     clearSelection();
   }
   
-  const loadMoreMessages = useGlobal((state) => state.loadMoreMessages);
+  // const loadMoreMessages = useGlobal((state) => state.loadMoreMessages);
 
-  const messageList = useGlobal((state) => state.messageList);
-  const messageSend = useGlobal((state) => state.messageSend);
-  const messageType = useGlobal((state) => state.messageType); 
-  const socket = useGlobal((state) => state.socket); // ✅ use socket instead of connection
-  const socketReady = useGlobal((state) => state.socketReady);
-  const socketConnect = useGlobal((state) => state.socketConnect);
+  // const messageList = useGlobal((state) => state.messageList);
+  // // const messageSend = useGlobal((state) => state.messageSend);
+  // const messageType = useGlobal((state) => state.messageType); 
+  // // const socket = useGlobal((state) => state.socket); // ✅ use socket instead of connection
+  // // const socketReady = useGlobal((state) => state.socketReady);
+  // const socketConnect = useGlobal((state) => state.socketConnect);
 
   // Ensure we actively connect when arriving (e.g., via Share) and socket isn’t ready
   useEffect(() => {
@@ -1062,12 +1187,19 @@ export default function MessageScreen() {
   // const filteredMessages =
   //   messagesList?.filter((msg) => String(msg.connection_id) === String(connectionId)) || [];
   // Show messages only for the active friend/chat
-  const { messagesUsername, messagesConnectionId } = useGlobal.getState();
+  
+  // const { messagesUsername, messagesConnectionId } = useGlobal.getState();
+  // const byId = messagesConnectionId && messagesConnectionId === connectionId;
+  // const byUser = friend?.username && messagesUsername === friend.username;
+  // const isActiveChat = byId || byUser;
+  // const chatMessages = isActiveChat ? (messagesList || []) : [];
+  // const groupedSections = useMemo(() => groupMessagesByDay(chatMessages), [chatMessages]);
+
   const byId = messagesConnectionId && messagesConnectionId === connectionId;
   const byUser = friend?.username && messagesUsername === friend.username;
   const isActiveChat = byId || byUser;
-  const chatMessages = isActiveChat ? (messagesList || []) : [];
-  const groupedSections = useMemo(() => groupMessagesByDay(chatMessages), [chatMessages]);
+  // const chatMessages = isActiveChat ? (messagesList || []) : [];
+  // const groupedSections = useMemo(() => groupMessagesByDay(chatMessages), [chatMessages]);
 
 
   const messagesTyping = useGlobal((s) => s.messagesTyping);
@@ -1166,29 +1298,85 @@ export default function MessageScreen() {
 
 
   // Request messages when connectionId changes and socket ready
-  useEffect(() => {
-    if (!socketReady) { // (!connection || connection.readyState !== 1)
-      console.log("[MessageScreen] Socket not ready");
-      return;
-    }
-    if (!connectionId) {
-      console.log("[MessageScreen] Missing connectionId");
-      return;
-    }
-    console.log("[MessageScreen] Requesting messages for:", connectionId);
-    messageList(connectionId);
+  // useEffect(() => {
+  //   if (!socketReady) { // (!connection || connection.readyState !== 1)
+  //     console.log("[MessageScreen] Socket not ready");
+  //     return;
+  //   }
+  //   if (!connectionId) {
+  //     console.log("[MessageScreen] Missing connectionId");
+  //     return;
+  //   }
+  //   console.log("[MessageScreen] Requesting messages for:", connectionId);
+  //   messageList(connectionId);
 
-    // ✅ Trigger "seen" for any unseen messages in this chat
-    chatMessages
-      .filter(msg => !msg.is_me && !msg.seen)
-      .forEach(msg => {
-        socket.send(JSON.stringify({
-          source: "message.seen",
-          connectionId,
-          messageId: msg.id
-        }));
-      });
-  }, [socketReady, connectionId]);
+  //   // ✅ Trigger "seen" for any unseen messages in this chat
+  //   chatMessages
+  //     .filter(msg => !msg.is_me && !msg.seen)
+  //     .forEach(msg => {
+  //       socket.send(JSON.stringify({
+  //         source: "message.seen",
+  //         connectionId,
+  //         messageId: msg.id
+  //       }));
+  //     });
+  // }, [socketReady, connectionId]);
+
+  // ✅ Use a Set to track which connections have already been requested
+  const requestedRef = useRef(new Set());
+
+  // ✅ Select once at top level with shallow comparison
+  const existingMessagesCount = useGlobal(
+    (s) => (s.messagesByConnection?.[messagesConnectionId]?.length ?? 0)
+  );
+
+  console.log("[Message.jsx] activeConnectionId:", activeConnectionId,
+            "chatMessagesCount:", chatMessagesCount,
+            "chatMessages sample:", chatMessages.slice(0,3));
+
+  console.log("[Message.jsx] messagesList length:", messagesList.length,
+            "messagesByConnection keys:", Object.keys(useGlobal.getState().messagesByConnection || {}),
+            "messagesByConnection[activeConnectionId] length:",
+            useGlobal.getState().messagesByConnection?.[activeConnectionId]?.length || 0);
+
+
+  // Effect 1: request messages only once per connection/socket change
+  useEffect(() => {
+    console.log("[Effect1] socketReady:", socketReady,
+                "messagesConnectionId:", messagesConnectionId,
+                "alreadyRequested:", requestedRef.current.has(messagesConnectionId),
+                "existingMessagesCount:", existingMessagesCount);
+
+    if (!socketReady || !socket || !messagesConnectionId) return;
+    if (requestedRef.current.has(messagesConnectionId)) return;
+
+    if (existingMessagesCount === 0) {
+      console.log("[Effect1] Requesting messages for connId:", messagesConnectionId);
+      messageListFn(messagesConnectionId);
+      requestedRef.current.add(messagesConnectionId);
+    }
+  }, [socketReady, messagesConnectionId, existingMessagesCount]);
+
+  // Effect 2: mark messages as seen when chatMessages changes
+  useEffect(() => {
+    console.log("[Effect2] socketReady:", socketReady,
+                "activeConnectionId:", activeConnectionId,
+                "chatMessages length:", chatMessages.length);
+
+    if (!socketReady || !activeConnectionId) return;
+
+    const unseen = chatMessages.filter(msg => !msg.is_me && !msg.seen);
+    if (unseen.length === 0) return;
+
+    unseen.forEach(msg => {
+      console.log("[Effect2] Marking message as seen:", msg.id);
+      socket.send(JSON.stringify({
+        source: "message.seen",
+        connectionId: activeConnectionId,
+        messageId: msg.id
+      }));
+    });
+  }, [socketReady, activeConnectionId, chatMessagesCount]);
 
   useEffect(() => {
     console.log('[MessageScreen] Requesting messages for:', connectionId);

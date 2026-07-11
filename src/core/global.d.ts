@@ -29,19 +29,52 @@ export interface GlobalState {
 
   friendList: any | null;
 
+  // ✅ New active chat context
+  activeFriend: any | null;
+  // activeConnectionId: string | number | null;
+  activeConnectionId: number | null;
+  setActiveFriend: (friend: any) => void;
+  setActiveConnectionId: (id: number | null) => void;   // ✅ NEW
+  clearActiveFriend: () => void;
+
+  // ✅ Debug helper
+  debugLogState: () => void;
+
   messagesList: any[];
   messagesNext: any | null;
   messagesPage: number;
   messagesTyping: string | null;
+
+  // ✅ Active chat context
   messagesUsername: string | null;
-  messageList: (connectionId: string | number, page?: number) => void;
-  loadMoreMessages: (connectionId: string | number) => void;
+  setMessagesUsername: (username: string | null) => void;   // NEW
+  
+  // messagesConnectionId: string | number | null;
+  // setMessagesConnectionId: (id: string | number | null) => void;  // NEW
+
+  // 🔧 Normalize connection IDs strictly as numbers
+  messagesConnectionId: number | null;
+  setMessagesConnectionId: (id: number | null) => void;
+  messagesByConnection: Record<number, any[]>;   // ✅ add this
+
+  // messageList: (connectionId: string | number, page?: number) => void;
+  // loadMoreMessages: (connectionId: string | number) => void;
+  // addInboundMessage: (connectionId: string | number, text: string) => void;
+
+  messageList: (connectionId: number, page?: number) => void;
+  loadMoreMessages: (connectionId: number) => void;
+  addInboundMessage: (connectionId: number, text: string) => void;
+
   messageSend: (
     connectionId: string | number,
     message: string,
     media?: {
       base64?: string;
       filename?: string;
+      image?: string;
+      image_filename?: string;
+      voice?: string;
+      voice_filename?: string;
       video?: string;
       video_filename?: string;
       video_url?: string;

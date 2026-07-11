@@ -1,5 +1,5 @@
 // app/_layout.tsx
-import { Stack, router } from "expo-router"; // ✅ no ThemeProvider here
+import { Stack, router, usePathname } from "expo-router"; // ✅ no ThemeProvider here
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import "react-native-reanimated";
@@ -39,6 +39,7 @@ export default function RootLayout() {
 
   const [lastPayloadKey, setLastPayloadKey] = useState<string | null>(null);
 
+  const pathname = usePathname();
 
   const [fontsLoaded] = useFonts({
     "LeckerliOne-Regular": require("@/src/assets/fonts/LeckerliOne-Regular.ttf"),
@@ -47,6 +48,11 @@ export default function RootLayout() {
 
   const initialized = useGlobal((state: any) => state.initialized);
   const init = useGlobal((state: any) => state.init);
+
+  // ✅ Call debug logs inside a component
+  useEffect(() => {
+    globalStore.getState().debugLogState();
+  }, []);
 
   useEffect(() => {
     init();
@@ -76,37 +82,85 @@ export default function RootLayout() {
     [lastPayloadKey, setInboundShare, initialized]
   );
   
-  // ✅ Clear stale payloads on app restart
-  useEffect(() => {
-    clearInboundShare();
+  // ✅ Reset only local state, not global inboundShare
+  useEffect(() => {    
     setQueuedPayload(null);
     setLastPayloadKey(null);
+    // ❌ Do NOT clearInboundShare here — let inboundShare survive startup
+    console.log("[RootLayout - Inbound] Reset local queued state at startup (inboundShare preserved)");
   }, []);
-  
-  // ✅ Route only once activeFriend + activeConnectionId are ready
-  useEffect(() => {
-    if (!queuedPayload) return;
-    if (!initialized || !fontsLoaded) return;
 
-    if (activeFriend && activeConnectionId) {
-      console.log("[Inbound Share] Routing to Message with payload:", queuedPayload);
-      router.replace({
-        pathname: "/Message",
-        params: {
-          id: String(activeConnectionId),
-          friend: JSON.stringify(activeFriend),
-          fromShare: "1",
-        },
-      });
-    }
-  }, [queuedPayload, initialized, fontsLoaded, activeFriend, activeConnectionId]);
+  // ✅ Reactively listen to inboundShare from global store
+  const inboundShare = useGlobal((s: any) => s.inboundShare);
   
-  // ✅ Fetch pending payload once on mount, not forever
+  // ✅ Reactively listen to inboundShare from global store
+  useEffect(() => {
+    if (!inboundShare) return;
+
+    console.log("[RootLayout - Inbound] inboundShare effect fired");
+    console.log("[Debug - Inbound] inboundShare:", inboundShare);
+    console.log("[Debug - Inbound] activeFriend:", activeFriend);
+    console.log("[Debug - Inbound] activeConnectionId:", activeConnectionId);
+    console.log("[Debug - Inbound] initialized:", initialized);
+
+    // 🚨 If this is a stale payload from a previous run, clear it immediately
+    if (!initialized || !inboundShare.payload?.text) {
+      console.log("[RootLayout - Inbound] Clearing stale inboundShare at startup:", inboundShare);
+      // clearInboundShare();
+      setQueuedPayload(null);
+      return;
+    }
+
+    console.log("[RootLayout - Inbound] Detected inboundShare:", inboundShare);
+
+    // Show banner immediately
+    setQueuedPayload(inboundShare);
+
+    // 🚨 Do not auto-navigate here.
+    // Just keep payload queued so FriendsScreen can show the banner.
+    if (activeFriend && activeConnectionId) {
+      let normalized: InboundPayload | null = null;
+
+      if (inboundShare.kind === "text") {
+        normalized = { kind: "text", text: inboundShare.payload?.text || "" };
+      } else if (inboundShare.kind === "image") {
+        normalized = {
+          kind: "image",
+          image: inboundShare.payload?.image || "",
+          filename: inboundShare.payload?.filename,
+          base64: inboundShare.payload?.base64,
+        };
+      } else if (inboundShare.kind === "video") {
+        normalized = {
+          kind: "video",
+          video_url: inboundShare.payload?.video_url || "",
+          video_filename: inboundShare.payload?.video_filename,
+          video: inboundShare.payload?.video,
+        };
+      } else if (inboundShare.kind === "voice") {
+        normalized = {
+          kind: "voice",
+          voice: inboundShare.payload?.voice || "",
+          filename: inboundShare.payload?.filename || "",
+          base64: inboundShare.payload?.base64,
+        };
+      }
+
+      if (normalized) {
+        setQueuedPayload(normalized);
+        console.log("[RootLayout - Inbound] Queued inboundShare, waiting for user to select friend");
+      }
+    }
+  }, [inboundShare, activeFriend, activeConnectionId, initialized]);
+
+
+
+  // ✅ Fetch pending payload once on mount
   useEffect(() => {
     const checkOnce = async () => {
       try {
         const pending = await BashShareModule.getPendingShare();
-        console.log("[RootLayout] initial getPendingShare result:", pending);
+        console.log("[RootLayout - Inbound] initial getPendingShare result:", pending);
         if (pending) {
           const parsed = JSON.parse(pending);
           let normalized;
@@ -115,15 +169,15 @@ export default function RootLayout() {
           } else {
             normalized = parsed;
           }
+          // Set into global store so inboundShare effect above reacts
           setInboundShare(normalized);
-          setQueuedPayload(normalized);
         }
       } catch (e) {
-        console.log("[RootLayout] Error fetching pending share:", e);
+        console.log("[RootLayout - Inbound] Error fetching pending share:", e);
       }
     };
 
-    checkOnce(); // ✅ run once at startup
+    checkOnce();
   }, []);
 
   return (

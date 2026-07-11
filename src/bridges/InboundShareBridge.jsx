@@ -3,7 +3,7 @@ import useGlobal from "@/src/core/global";
 import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import { File } from "expo-file-system"; // new File API in SDK 54
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { NativeModules, NativeEventEmitter, InteractionManager } from "react-native";
 
 const { BashShareModule } = NativeModules; // ✅ has jsReady, ping, etc.
@@ -11,7 +11,7 @@ const BashShareEmitter = new NativeEventEmitter(BashShareModule); // ✅ for eve
 
 export default function InboundShareBridge({ onShare }) {
   const setInboundShare = useGlobal((s) => s.setInboundShare);
-  let lastKey = null;
+  const lastKeyRef = useRef(null); // ✅ persist across renders
 
   const consume = async (raw) => {
     console.log("[Inbound Share] Event received:", raw, typeof raw);
@@ -19,20 +19,19 @@ export default function InboundShareBridge({ onShare }) {
     let payload;
     if (typeof raw === "string") {
       if (raw === "emitted" || raw === "nothing") {
-        console.log("[Inbound Share] Ignored marker string from native:", raw);
-        return; // ✅ skip markers, do not treat them as payload
+        console.log("[Inbound Share] Ignored marker string:", raw);
+        return;
       }
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object" && parsed.kind) {
-          if (parsed.kind === "text") {
-            const textValue = parsed.text || parsed.payload?.text || "";
-            payload = { kind: "text", payload: { text: String(textValue).trim() } };
-          } else {
-            payload = { kind: "media", payload: parsed.payload || parsed };
-          }
-          console.log("[Inbound Share] Payload(parsed):", parsed);
+        if (parsed.kind === "text") {
+          const textValue = parsed.text || parsed.payload?.text || "";
+          payload = { kind: "text", payload: { text: String(textValue).trim() } };
+        } else {
+          // ✅ trust native kind, don’t force-wrap
+          payload = parsed;
         }
+        console.log("[Inbound Share] Payload(parsed):", payload);
       } catch {
         payload = { kind: "text", payload: { text: raw.trim() } };
         console.log("[Inbound Share] Payload(fallback-text):", payload);
@@ -45,21 +44,9 @@ export default function InboundShareBridge({ onShare }) {
       } catch (e) {
         console.log("[Inbound Share] Error building payload from array:", e);
       }
-    } else if (raw && typeof raw === "object" && typeof raw.nativeEvent === "string") {
-      payload = { kind: "text", payload: { text: raw.nativeEvent.trim() } };
-      console.log("[Inbound Share] Payload(nativeEvent):", payload);
     } else if (raw && typeof raw === "object" && raw.kind) {
-      // Already a normalized payload from native
       payload = raw;
       console.log("[Inbound Share] Payload(object):", payload);
-    } else if (raw) {
-      try {
-        const normalized = await toBashChatPayload(raw);
-        payload = { kind: "media", payload: normalized };
-        console.log("[Inbound Share] Payload:", normalized);
-      } catch (e) {
-        console.log("[Inbound Share] Error building payload:", e, "Raw:", raw);
-      }
     }
 
     if (!payload) {
@@ -67,38 +54,29 @@ export default function InboundShareBridge({ onShare }) {
       return;
     }
 
-    // Track last timestamp instead of payload content
+    // ✅ Duplicate suppression with ref
     const now = Date.now();
-    if (lastKey && now - lastKey < 2000) {
-      console.log("[Inbound Share] Ignored rapid duplicate within 2s window");
+    if (lastKeyRef.current && now - lastKeyRef.current < 2000) {
+      console.log("[Inbound Share] Ignored duplicate within 2s");
+      return;
+    }
+    lastKeyRef.current = now;
+
+    console.log("[Inbound Share] Delivering payload:", payload);
+    if (typeof onShare === "function") {
+      onShare(payload);
     } else {
-      lastKey = now;
-      console.log("[Inbound Share] Delivering payload:", payload);
-      
-      if (typeof onShare === "function") {
-        console.log("[Inbound Share] Routed payload to onShare callback:", payload);
-        onShare(payload);
-      } else {
-        console.log("[Inbound Share] Routed payload to global store:", payload);
-        setInboundShare(payload);
-      }
+      setInboundShare(payload);
+    }
 
-      // ✅ Clear native queue, but leave JS store intact
-      try {
-        console.log("[Inbound Share] Calling consumePendingShare() to clear native queue");
-        await BashShareModule?.consumePendingShare?.();
-        console.log("[Inbound Share] Native queue consumed successfully");
-      } catch (e) {
-        console.log("[Inbound Share] Error consuming native queue:", e);
-      }
+    try {
+      await BashShareModule?.consumePendingShare?.();
+      console.log("[Inbound Share] Native queue consumed");
+    } catch (e) {
+      console.log("[Inbound Share] Error consuming native queue:", e);
+    }
+  };
 
-      // ⚠️ Do NOT clear inboundShare here.
-      // Let MessageScreen consume it via useEffect and then call clearInboundShare().
-    }  
-    
-  };  
-
-  // ✅ Only attach if module exists
   if (!BashShareModule) {
     console.warn("[Inbound Share] BashShareModule not available yet");
     return null;
@@ -106,15 +84,9 @@ export default function InboundShareBridge({ onShare }) {
 
   useEffect(() => {
     console.log("[Inbound Share] Bridge mounted");
-
-    // ✅ Only listen for live events; startup flush handled in share-listener.js
-    const subscription = BashShareEmitter.addListener("onShareReceived", (raw) => {
-      console.log("[Inbound Share] Event fired with raw:", raw, typeof raw);
-      consume(raw);
-    });
-
+    const subscription = BashShareEmitter.addListener("onShareReceived", consume);
     return () => {
-      console.log("[Inbound Share] Bridge unmounted, removing listener");
+      console.log("[Inbound Share] Bridge unmounted");
       subscription.remove();
     };
   }, []);

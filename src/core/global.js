@@ -20,29 +20,199 @@ function responseFriendNew(set, get, friend) {
   set(() => ({ friendList: [friend, ...safe] }));
 }
 
+// function responseMessageList(set, get, data) {
+//   const currentPage = get().messagesPage || 0;
+//   const isFirstPage = currentPage === 0;
+
+//   console.log("[Debug - Inbound] responseMessageList data:", data);
+  
+//   set((state) => ({
+//     messagesList: isFirstPage ? data.messages : [...state.messagesList, ...data.messages],
+//     messagesNext: data.next,
+//     messagesUsername: data.friend.username,
+//     messagesConnectionId: data.connection_id ?? data.friend?.connection_id ?? null,
+//     messagesPage: data.next !== null ? state.messagesPage + 1 : state.messagesPage,
+
+//     // ✅ also set activeConnectionId here
+//     activeConnectionId: data.connection_id ?? data.friend?.connection_id ?? null,
+//     activeFriend: data.friend,
+//   }));
+// }
+
+
 function responseMessageList(set, get, data) {
   const currentPage = get().messagesPage || 0;
   const isFirstPage = currentPage === 0;
-  set((state) => ({
-    messagesList: isFirstPage ? data.messages : [...state.messagesList, ...data.messages],
-    messagesNext: data.next,
-    messagesUsername: data.friend.username,
-    messagesConnectionId: data.connection_id ?? data.friend?.connection_id ?? null,
-    messagesPage: data.next !== null ? state.messagesPage + 1 : state.messagesPage
-  }));
+
+  console.log("[responseMessageList] START call",
+              "currentPage:", currentPage,
+              "isFirstPage:", isFirstPage,
+              "incoming messages length:", data.messages?.length,
+              "next:", data.next,
+              "friend:", data.friend?.username,
+              "connection_id:", data.connection_id);
+
+  set((state) => {
+    // ✅ Normalize connection_id first
+    const connIdRaw = data.connection_id ?? state.messagesConnectionId;
+    const connId = data.connection_id != null && !isNaN(Number(data.connection_id))
+      ? Number(data.connection_id)
+      : null;
+    console.log("[responseMessageList] normalized connId:", connId);
+
+    // ✅ Get existing messages for this connection
+    let existingForConn = connId != null ? (state.messagesByConnection?.[connId] || []) : [];
+    console.log("[responseMessageList] existingForConn length:", existingForConn.length);
+
+    // ✅ Build merged list
+    let merged;
+    if (data.messages && data.messages.length > 0) {
+      const optimistic = existingForConn.filter((m) => String(m.id).startsWith("local-") || m.delivered === false);
+      const preservedOptimistic = optimistic.filter(
+        (m) => !data.messages.some(
+          (srv) => String(srv.connection_id) === String(m.connection_id) && srv.text.trim() === m.text.trim()
+        )
+      );
+      const nonOptimistic = existingForConn.filter((m) => !String(m.id).startsWith("local-"));
+      const newServerMessages = data.messages.filter((srv) => !existingForConn.some((m) => m.id === srv.id));
+
+      merged = isFirstPage
+        ? [...nonOptimistic, ...preservedOptimistic, ...data.messages]
+        : [...nonOptimistic, ...preservedOptimistic, ...existingForConn, ...newServerMessages];
+    } else {
+      // ✅ If no new messages, fall back to global list
+      merged = existingForConn;
+    }
+
+    console.log("[responseMessageList] merged length:", merged.length);
+
+    const lastMessage = merged.length > 0
+      ? merged[merged.length - 1].text
+      : state.activeFriend?.lastMessage;
+    
+    // ✅ Only use existingForConn as fallback, not global list
+    const fallbackList = existingForConn && existingForConn.length > 0
+      ? [...existingForConn]
+      : [];
+
+    const newByConn = {
+      ...state.messagesByConnection,
+      ...(connId != null
+        ? {
+            [connId]:
+              merged && merged.length > 0
+                ? [...merged]
+                : fallbackList
+          }
+        : {})
+    };
+
+    console.log("[responseMessageList] after update keys:", Object.keys(newByConn),
+            "length for connId:", connId, newByConn[connId]?.length || 0);
+    console.log("[responseMessageList] writing messagesByConnection for connId:", connId,
+            "merged length:", merged.length);
+    console.log("[responseMessageList] messagesByConnection keys after update:",
+            Object.keys(newByConn));
+    console.log("[responseMessageList] messagesByConnection[connId] length:",
+            connId != null ? newByConn[connId]?.length : "N/A");
+
+    // ✅ Update global shortcut
+    const newMessagesList = merged;
+
+    const newActiveFriend =
+      data.friend && state.activeFriend?.username === data.friend.username
+        ? state.activeFriend
+        : (data.friend ? { ...data.friend, lastMessage } : state.activeFriend);
+
+    console.log("[responseMessageList] returning UPDATED state",
+              "connId:", connId,
+              "newMessagesList length:", newMessagesList.length,
+              "messagesPage:", state.messagesPage,
+              "activeFriend username:", newActiveFriend?.username,
+              "messagesNext:", data.next);
+
+    console.log("[responseMessageList] FINAL state update:",
+              "activeConnectionId:", connId,
+              "messagesUsername:", data.friend?.username,
+              "slice length:", newByConn[connId]?.length || 0);
+
+    console.log("[responseMessageList] FINAL state:",
+              "activeConnectionId:", state.activeConnectionId,
+              "messagesConnectionId:", state.messagesConnectionId,
+              "messagesUsername:", state.messagesUsername);
+
+
+    return {
+      ...state,
+      messagesByConnection: newByConn,
+      messagesList: newMessagesList,
+      messagesNext: data.next,
+      messagesUsername: data.friend?.username ?? state.messagesUsername,
+      // ✅ Only update IDs if data.connection_id is present
+      messagesConnectionId: data.connection_id != null ? connId : state.messagesConnectionId,
+      activeConnectionId: data.connection_id != null ? connId : state.activeConnectionId,
+      messagesPage: data.next !== null ? (state.messagesPage ?? 0) + 1 : state.messagesPage ?? 0,
+      activeFriend: newActiveFriend,
+    };
+
+    console.log("[responseMessageList] FINAL state after return:",
+        "activeConnectionId:", state.activeConnectionId,
+        "messagesConnectionId:", state.messagesConnectionId,
+        "messagesUsername:", state.messagesUsername,
+        "slice length:", state.messagesByConnection?.[state.activeConnectionId]?.length || 0);
+
+  });
 }
 
+
+
+// function responseMessageSend(set, get, data) {
+//   if (!data?.message || !data?.friend) return;
+//   const username = data.friend.username;
+//   const activeId = get().messagesConnectionId;
+//   const message = {
+//     ...(data.message || {}),
+//     waveform: Array.isArray(data.message?.waveform) ? data.message.waveform : [],
+//     video_url: data.message?.video_url ?? null,
+//     video_thumb_url: data.message?.video_thumb_url ?? null,
+//     video_duration: data.message?.video_duration ?? null,
+//   };
+//   const currentFriends = get().friendList;
+//   const safeFriendList = Array.isArray(currentFriends) ? [...currentFriends] : [];
+//   const friendIndex = safeFriendList.findIndex(item => item.friend.username === username);
+//   if (friendIndex >= 0) {
+//     const item = { ...safeFriendList[friendIndex] };
+//     item.preview = data.message.text;
+//     item.updated = data.message.created;
+//     const next = [...safeFriendList];
+//     next.splice(friendIndex, 1);
+//     next.unshift(item);
+//     set(() => ({ friendList: next }));
+//   }
+//   if (activeId && message.connection_id && activeId !== message.connection_id) return;
+//   if (username !== get().messagesUsername) return;
+//   const messagesList = [...get().messagesList, message];
+//   set(() => ({ messagesList, messagesTyping: null }));
+// }
+
+// New responseMessageSend with optimistic insert and friend preview update
 function responseMessageSend(set, get, data) {
   if (!data?.message || !data?.friend) return;
   const username = data.friend.username;
   const activeId = get().messagesConnectionId;
+
+  // ✅ Mark as optimistic
   const message = {
+    id: `local-${Date.now()}`,
     ...(data.message || {}),
+    delivered: false,
     waveform: Array.isArray(data.message?.waveform) ? data.message.waveform : [],
     video_url: data.message?.video_url ?? null,
     video_thumb_url: data.message?.video_thumb_url ?? null,
     video_duration: data.message?.video_duration ?? null,
   };
+
+  // ✅ Update friend preview
   const currentFriends = get().friendList;
   const safeFriendList = Array.isArray(currentFriends) ? [...currentFriends] : [];
   const friendIndex = safeFriendList.findIndex(item => item.friend.username === username);
@@ -55,11 +225,26 @@ function responseMessageSend(set, get, data) {
     next.unshift(item);
     set(() => ({ friendList: next }));
   }
+
+  // ✅ Only append if active chat matches
   if (activeId && message.connection_id && activeId !== message.connection_id) return;
   if (username !== get().messagesUsername) return;
-  const messagesList = [...get().messagesList, message];
-  set(() => ({ messagesList, messagesTyping: null }));
+
+  // ✅ Update both global shortcut and per-connection store
+  const currentByConn = get().messagesByConnection || {};
+  const existingForConn = currentByConn[message.connection_id] || [];
+  const updatedForConn = [...existingForConn, message];
+
+  set(() => ({
+    messagesList: updatedForConn, // shortcut for active chat
+    messagesByConnection: {
+      ...currentByConn,
+      [message.connection_id]: updatedForConn,
+    },
+    messagesTyping: null,
+  }));
 }
+
 
 function responseMessageType(set, get, data) {
   if (data.username !== get().messagesUsername) return;
@@ -143,6 +328,35 @@ function responseMessageDeleted(set, get, data) {
 const useGlobal = create(
   persist(
     (set, get) => ({
+      //--------------------------
+      // Active Chat Context
+      //--------------------------
+      activeFriend: null,
+      activeConnectionId: null,
+
+      // ✅ Debug logs at startup
+      debugLogState: () => {
+        console.log("[Debug - Inbound] activeFriend:", get().activeFriend);
+        console.log("[Debug - Inbound] activeConnectionId:", get().activeConnectionId);
+        console.log("[Debug - Inbound] socketReady:", get().socketReady);
+      },
+
+      setActiveFriend: (friend) => {
+        set(() => ({ activeFriend: friend }));
+        // 🚨 also set connectionId if friend has one
+        if (friend?.connection_id) {
+          set(() => ({ activeConnectionId: friend.connection_id }));
+        }
+      },
+
+      setActiveConnectionId: (id) => {
+        set(() => ({ activeConnectionId: id }));
+      },
+
+      clearActiveFriend: () => {
+        set(() => ({ activeFriend: null, activeConnectionId: null }));
+      },
+
       //--------------------------
       // Inbound Share Queue
       //--------------------------
@@ -236,20 +450,38 @@ const useGlobal = create(
         utils.log("[Socket] Connecting to:", url);
 
         const socket = new WebSocket(url);
+        utils.log("[Debug - Inbound] socketConnect created WebSocket:", socket);
+
+        // Immediately store socket object so it's never null
+        set(() => ({ socket }));
 
         socket.onopen = () => {
           utils.log('socket.onopen');
-          set(() => ({ socketReady: true, socketConnecting: false }));
+          console.log("[Debug - Inbound] socket connected");
+
+          set(() => ({
+            socketReady: true,
+            socketConnecting: false,        
+            socket, // ✅ ensure socket is set here too    
+          }));          
 
           // Initial requests once connected
           socket.send(JSON.stringify({ type: 'request.list' }));
           socket.send(JSON.stringify({ type: 'friend.list' }));
           socket.send(JSON.stringify({ type: 'message.list' }));
-        };
+        };        
 
+        // socket.onmessage with error handling and debug logs
         socket.onmessage = (event) => {
-          const parsed = JSON.parse(event.data);
-          utils.log('onmessage:', parsed);
+          let parsed;
+          try {
+            parsed = JSON.parse(event.data);
+          } catch (err) {
+            utils.log("[Error - Inbound] Failed to parse onmessage:", err, event.data);
+            return;
+          }
+
+          utils.log("[Debug - Inbound] onmessage received:", parsed);
 
           const responses = {
             'friend.list': responseFriendList,
@@ -268,12 +500,18 @@ const useGlobal = create(
 
           const resp = responses[parsed.source];
           if (!resp) {
-            utils.log('parsed.source "' + parsed.source + '" not found');
+            utils.log("[Debug - Inbound] parsed.source not found:", parsed.source);
+            return;
+          }
+
+          if (!parsed.data) {
+            utils.log("[Debug - Inbound] parsed.data missing for source:", parsed.source);
             return;
           }
 
           resp(set, get, parsed.data);
         };
+
 
         socket.onerror = (e) => {
           utils.log('socket.onerror', e.message);
@@ -339,11 +577,46 @@ const useGlobal = create(
       // Messages
       //--------------------------
       messagesList: [],
+      messagesByConnection: {},
       messagesNext: null,
       messagesPage: 0,
       messagesTyping: null,
-      messagesUsername: null,
 
+      // ✅ Active chat context values
+      messagesUsername: null,
+      setMessagesUsername: (username) => set(() => ({ messagesUsername: username })),   // NEW
+      messagesConnectionId: null,
+      setMessagesConnectionId: (id) => set(() => ({ messagesConnectionId: id })),      // NEW
+
+      // messageList: (connectionId, page = 0) => {
+      //   const socket = get().socket;
+      //   if (!socket || socket.readyState !== WebSocket.OPEN) {
+      //     utils.log("[Socket] Not connected, cannot send message.list");
+      //     return;
+      //   }
+
+      //   if (page === 0) {
+      //     set((state) => ({
+      //       messagesList: [],
+      //       messagesNext: null,
+      //       messagesTyping: null,
+      //       // ✅ correctly reference the current state
+      //       messagesUsername: state.messagesUsername,
+      //       messagesConnectionId: state.messagesConnectionId,       
+      //       messagesPage: 0
+      //     }));
+      //   } else {
+      //     set(() => ({ messagesNext: null }));
+      //   }
+
+      //   socket.send(JSON.stringify({
+      //     type: 'message.list',
+      //     connectionId,
+      //     page
+      //   }));
+      // },
+
+      
       messageList: (connectionId, page = 0) => {
         const socket = get().socket;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -351,15 +624,26 @@ const useGlobal = create(
           return;
         }
 
-        if (page === 0) {
-          set(() => ({
-            messagesList: [],
+        // ✅ Guard: don’t request if we already have messages for this connection and page=0
+        const existing = get().messagesByConnection?.[connectionId] || [];
+        utils.log("[messageList] connId:", connectionId, "page:", page, "existing length:", existing.length);
+
+        if (page === 0 && existing.length > 0) {
+          utils.log("[Global] Already have messages for connId:", connectionId);
+          return;
+        }
+
+        if (page === 0 && existing.length === 0) {
+          utils.log("[messageList] resetting messagesList for connId:", connectionId);
+          set((state) => ({
+            messagesList: state.messagesList,   // ✅ don’t clear if already populated
             messagesNext: null,
             messagesTyping: null,
-            messagesUsername: null,
+            messagesUsername: state.messagesUsername,
+            messagesConnectionId: state.messagesConnectionId,       
             messagesPage: 0
           }));
-        } else {
+        } else if (page > 0) {
           set(() => ({ messagesNext: null }));
         }
 
@@ -370,6 +654,7 @@ const useGlobal = create(
         }));
       },
 
+
       loadMoreMessages: (connectionId) => {
         const next = get().messagesNext;
         if (next !== null) {
@@ -379,41 +664,90 @@ const useGlobal = create(
         }
       },
 
+      // Helper: add inbound share directly to list
+      addInboundMessage: (connectionId, text) => {
+        set((state) => ({
+          messagesList: [
+            {
+              id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, // ✅ unique ID
+              connection_id: connectionId,
+              is_me: true,
+              text,
+              image: null,
+              voice: null,
+              video_url: null,
+              video_thumb_url: null,
+              video_duration: null,
+              delivered: false,            // stays false until server confirms
+              seen: false,
+              created: new Date().toISOString(),
+            },
+            ...state.messagesList,
+          ],
+        }));
+      },
+      
+
+      // New messageSend with optimistic insert + debug logs
       messageSend: (connectionId, message, media = null) => {
         const socket = get().socket;
+
+        utils.log("[Debug - Inbound] messageSend invoked. socketReadyState:", socket?.readyState,
+                  "connectionId:", connectionId, "message:", message);
+
         if (!socket || socket.readyState !== WebSocket.OPEN) {
-          utils.log("[Socket] Not connected, cannot send message.send");
+          utils.log("[Socket - Inbound] Not connected, cannot send message.send");
           return;
         }
 
-        const payload = {
-          source: 'message.send',
-          connectionId,
-          message,
+        // ✅ Optimistically insert into local store so UI shows immediately
+        get().addInboundMessage(connectionId, message);        
+
+        const data = {
+          connection_id: connectionId,
+          message: {
+            text: message,
+            created: new Date().toISOString(),
+          },
+          friend: { username: get().messagesUsername }
         };
 
+        // Attach media if present
         if (media) {
           if (media.base64 && media.filename) {
             const ext = media.filename.split('.').pop().toLowerCase();
             if (['jpg', 'jpeg', 'png'].includes(ext)) {
-              payload.image = media.base64;
-              payload.image_filename = media.filename;
+              data.message.image = media.base64;
+              data.message.image_filename = media.filename;
             } else if (['mp3', 'wav', 'm4a'].includes(ext)) {
-              payload.voice = media.base64;
-              payload.voice_filename = media.filename;
+              data.message.voice = media.base64;
+              data.message.voice_filename = media.filename;
             }
           }
           if (media.video && media.video_filename) {
-            payload.video = media.video;
-            payload.video_filename = media.video_filename;
-            payload.video_url = media.video_url;
-            payload.video_thumb_url = media.video_thumb_url;
-            payload.video_duration = media.video_duration;
+            data.message.video = media.video;
+            data.message.video_filename = media.video_filename;
+            data.message.video_url = media.video_url;
+            data.message.video_thumb_url = media.video_thumb_url;
+            data.message.video_duration = media.video_duration;
           }
         }
 
-        socket.send(JSON.stringify(payload));
+        const payload = {
+          source: 'message.send',
+          data,
+        };
+
+        utils.log("[Debug - Inbound] Sending payload:", payload);
+
+        try {
+          socket.send(JSON.stringify(payload));
+          utils.log("[Debug - Inbound] socket.send executed successfully");
+        } catch (err) {
+          utils.log("[Error - Inbound] socket.send failed:", err);
+        }
       },
+
 
       messageType: (username) => {
         const socket = get().socket;
@@ -539,6 +873,9 @@ const useGlobal = create(
         messagesTyping: state.messagesTyping,
         messagesUsername: state.messagesUsername,
         requestList: state.requestList,
+        // 🚨 persist activeFriend and activeConnectionId
+        activeFriend: state.activeFriend,
+        activeConnectionId: state.activeConnectionId,
       }),
     }
   )

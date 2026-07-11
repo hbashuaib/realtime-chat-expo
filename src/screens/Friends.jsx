@@ -59,7 +59,7 @@ function FriendRow({ item, currentTheme, onSelectFriend }) {
 
 function FriendsScreen() {
   const friendList = useGlobal((state) => state.friendList);
-  const { messageForward } = useGlobal.getState(); // ✅ access global action
+  const { messageForward, setActiveFriend } = useGlobal.getState(); // ✅ access global action
 
   const inboundShare = useGlobal((s) => s.inboundShare);
   const clearInboundShare = useGlobal((s) => s.clearInboundShare);
@@ -73,26 +73,31 @@ function FriendsScreen() {
   const currentTheme = theme[colorScheme];
 
   function onSelectFriend(item) {
+    // ✅ update global store before navigating
+    setActiveFriend(item.friend);
+
     // Inbound share handoff
     if (inboundShare) {
       router.push({
         pathname: "/Message",
         params: {
           friend: JSON.stringify(item.friend),
-          id: item.id,
-          fromShare: "1",
+          id: String(item.id),
+          fromShare: "1",  
+          // ✅ Pass payload along — no need to declare separately
+          inboundPayload: JSON.stringify(inboundShare),        
         },
       });
-      // ❌ Do NOT clearInboundShare here
+
+      // ❌ Do NOT clearInboundShare here      
+      
       return;
     }
 
-    // If we arrived here with forwarding payload, forward then navigate
+    // Forwarding flow
     if (forwardFromConnectionId && forwardMessageIds && !forwardingUsed.current) {
-      forwardingUsed.current = true;   // ✅ mark as consumed
-      
+      forwardingUsed.current = true;
       const fromId = Number(forwardFromConnectionId);
-      // forwardMessageIds comes as string or array depending on caller; normalize to array of numbers
       const ids = Array.isArray(forwardMessageIds)
         ? forwardMessageIds.map((v) => Number(v))
         : String(forwardMessageIds)
@@ -100,26 +105,24 @@ function FriendsScreen() {
             .map((v) => Number(v.trim()))
             .filter((v) => !Number.isNaN(v));
 
-      messageForward(fromId, item.id, ids);      
+      messageForward(fromId, item.friend.connection_id, ids);
 
-      // ✅ Navigate into chat WITHOUT forwarding params
       router.push({
         pathname: "/Message",
         params: {
           friend: JSON.stringify(item.friend),
-          id: item.id,
+          id: String(item.id),
         },
-      });    
-
+      });
       return;
     }
 
-    // Normal flow: just open the chat
+    // Normal flow
     router.push({
       pathname: "/Message",
       params: {
         friend: JSON.stringify(item.friend),
-        id: item.id,
+        id: String(item.id),
       },
     });
   }
