@@ -25,29 +25,43 @@ from .utils import (
     generate_video_thumbnail
 )
 
+from jwt.exceptions import ExpiredSignatureError
+
 class ChatConsumers(WebsocketConsumer):
     
     def connect(self):
-        user = self.scope['user']
-        print(user, user.is_authenticated)
-        if not user.is_authenticated:
-            return
-        # Save username to use as a group name for this user
-        self.username = user.username
-        
-        # Join this user to a group with their username
-        async_to_sync(self.channel_layer.group_add)(
-            self.username, self.channel_name
-        )
-        
-        self.accept()
+        try:
+            user = self.scope['user']
+            print("WebSocket connect attempt:", user, user.is_authenticated)
+
+            if not user.is_authenticated:
+                print("WebSocket rejected: unauthenticated")
+                self.close(code=4003)  # custom code for unauthenticated
+                return
+
+            print("WebSocket accepted for:", user.username)
+            self.username = user.username
+
+            async_to_sync(self.channel_layer.group_add)(
+                self.username, self.channel_name
+            )
+            self.accept()
+
+        except ExpiredSignatureError:
+            print("WebSocket rejected: expired token")
+            self.close(code=4001)  # custom code for expired JWT
         
         
     def disconnect(self, close_code):
         # Leave room/group
-        async_to_sync(self.channel_layer.group_discard)(
-            self.username, self.channel_name
-        )
+        username = getattr(self, "username", None)
+        
+        if username:
+            async_to_sync(self.channel_layer.group_discard)(
+                username, self.channel_name
+            )
+        print("Disconnected:", username, self.channel_name)
+
 
     #--------------------------
     #     Handle Requests
@@ -137,20 +151,31 @@ class ChatConsumers(WebsocketConsumer):
         self.send_group(user.username, 'friend.list', serialized.data)
     
     
-    def receive_message_list(self, data):
+    def receive_message_list(self, data): 
+        print("[Debug] Raw incoming data to receive_message_list:", data)
+        
         user = self.scope['user']
         connectionId = data.get('connectionId')
         page = data.get('page')
         page_size = 15
+        
+        print("receive_message_list called with", connectionId, page)
+        
+        if connectionId is None:
+            print("Error: Missing connectionId in payload:", data)
+            return
+
         try:
             connection = Connection.objects.get(id=connectionId)
         except Connection.DoesNotExist:
-            print('Error: Couldn\'t find connections')
+            print(f"Error: Connection {connectionId} not found")
             return
+        
         # Get messages
         messages = Message.objects.filter(
             connection=connection
         ).order_by('-created')[page * page_size:(page + 1) * page_size]
+        
         # Serialized Message
         serialized_messages = MessageSerializer(
             messages,
@@ -174,11 +199,13 @@ class ChatConsumers(WebsocketConsumer):
         ).count()  
         
         # If there are still more messages beyond this slice, return the next page index
-        if (page + 1) * page_size < messages_count:
-            next_page = page + 1
-        else:
-            next_page = None
+        # if (page + 1) * page_size < messages_count:
+        #     next_page = page + 1
+        # else:
+        #     next_page = None
 
+        # Calculate next page index if there are more messages
+        next_page = page + 1 if (page + 1) * page_size < messages_count else None
         
         data = {
             'messages': serialized_messages.data,
@@ -186,6 +213,20 @@ class ChatConsumers(WebsocketConsumer):
             'friend': serialized_friend.data,
             'connection_id': connection.id   # ✅ add this
         }
+        
+        print("[Debug] Sending message.list for connId:", connection.id,
+          "messages:", len(serialized_messages.data),
+          "friend:", serialized_friend.data.get("username"))
+        
+        # Debug: Print the last message for this connection
+        last_msg = Message.objects.filter(connection=connection).order_by('-created').first()
+        if last_msg:
+            print("[DB Debug] Last message for connId", connection.id,
+                "friend:", recipient.username,
+                "text:", last_msg.text)
+        else:
+            print("[DB Debug] No messages found for connId", connection.id)
+
         # Send back to the requestor
         self.send_group(user.username, 'message.list', data)
     
@@ -193,8 +234,13 @@ class ChatConsumers(WebsocketConsumer):
     # New receive_message_send with media support
     def receive_message_send(self, data):
         user = self.scope['user']
-        connectionId = data.get('connectionId')
-        message_text = data.get('message')
+        # ✅ Use correct key name
+        connection_id = data.get('connection_id') or data.get('connectionId')
+        
+        # ✅ Extract text from nested message object
+        message_obj = data.get('message') or {}
+        message_text = message_obj.get('text')
+    
         image = data.get('image')
         image_filename = data.get('image_filename')
         voice = data.get('voice')
@@ -203,10 +249,13 @@ class ChatConsumers(WebsocketConsumer):
         video_filename = data.get('video_filename')
 
         try:
-            connection = Connection.objects.get(id=connectionId)
+            connection = Connection.objects.get(id=connection_id)
         except Connection.DoesNotExist:
-            print("Error: Couldn't find connection")
+            print(f"[InboundShare] Error: Connection {connection_id} not found")
             return
+        
+        # ✅ Debug log
+        print(f"[InboundShare] Creating message for connId={connection_id}, text={message_text}")
 
         message = Message.objects.create(
             connection=connection,
@@ -552,37 +601,93 @@ class ChatConsumers(WebsocketConsumer):
                 },
             )
     
+    # --------------------------
+    # Explicit handlers for Channels dispatch
+    # --------------------------
+    def request_list(self, event):
+        self.receive_request_list(event)
+
+    def friend_list(self, event):
+        self.receive_friend_list(event)
+
+    def message_list(self, event):
+        self.receive_message_list(event)
+
+    def message_send(self, event):
+        self.receive_message_send(event)
+
+    def message_type(self, event):
+        self.receive_message_type(event)
+
+    def request_accept(self, event):
+        self.receive_request_accept(event)
+
+    def request_connect(self, event):
+        self.receive_request_connect(event)
+
+    def search(self, event):
+        self.receive_search(event)
+
+    def thumbnail(self, event):
+        self.receive_thumbnail(event)
+
+    def message_seen(self, event):
+        self.receive_message_seen(event)
+
+    def message_delete(self, event):
+        self.receive_message_delete(event)
+
+    def message_forward(self, event):
+        self.receive_message_forward(event)
+
         
     #-------------------------------------------------
     #     Catch/All Broadcast to Client Helpers
     #-------------------------------------------------
-    def send_group(self, group, source, data):
-        response = {
-            'type': 'broadcast_group',
-            'source': source,
-            'data': data
-        }
+    # def send_group(self, group, event_type, data):
+    #     response = {
+    #         # 'type': 'broadcast_group',
+    #         'type': event_type,
+    #         'data': data
+    #     }
+    #     async_to_sync(self.channel_layer.group_send)(
+    #         group, response
+    #     )
+        
+    def send_group(self, group, event_type, data):
+        print(f"[Debug] send_group called for group={group}, event_type={event_type}")
         async_to_sync(self.channel_layer.group_send)(
-            group, response
+            group,
+            {
+                "type": "chat_message",   # ✅ always dispatch to chat_message
+                "event": event_type,
+                "data": data,
+            }
         )
+
+    def chat_message(self, event):
+        print("[Debug] chat_message invoked:", event)
+        self.send(text_data=json.dumps({
+            "type": event["event"],
+            "data": event["data"]
+        }))
         
         
-    def broadcast_group(self, data):
-        '''
-        data:
-            - type: 'broadcst_group'
-            - source: Where it originated from?
-            - data: What ever you want to send as a dictionary
-        '''
+    # def broadcast_group(self, data):
+    #     '''
+    #     data:
+    #         - type: actual event type (e.g. 'friend.list', 'message.list')
+    #         - data: payload dictionary
+    #     '''
         
-        data.pop('type')
-        '''
-        return data:
-            - source: Where it originated from?
-            - data: What ever you want to send as a dictionary
-        '''
+    #     # data.pop('type')
+    #     # '''
+    #     # return data:
+    #     #     - source: Where it originated from?
+    #     #     - data: What ever you want to send as a dictionary
+    #     # '''
         
-        self.send(text_data=json.dumps(data))
+    #     self.send(text_data=json.dumps(data))
         
 
 

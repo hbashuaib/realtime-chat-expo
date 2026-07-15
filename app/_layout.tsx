@@ -58,6 +58,18 @@ export default function RootLayout() {
     init();
   }, [init]);  
 
+  // ✅ Trigger socketConnect once tokens are ready
+  useEffect(() => {
+    const state = globalStore.getState();
+    const tokens = state.tokens; // <-- requires tokens to be typed in GlobalState
+
+    if (tokens?.access && !state.socketReady && !state.socketConnecting) {
+      console.log("[RootLayout] Tokens ready, starting socketConnect");
+      state.socketConnect();
+    }
+  }, [useGlobal((s: any) => s.tokens?.access)]);
+
+
   const handleInboundShare = useCallback(
     (payload: InboundPayload | null) => {
       if (!payload) return;

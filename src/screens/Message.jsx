@@ -704,6 +704,7 @@ export default function MessageScreen() {
 
   // ✅ Select per-connection messages
   const activeConnectionId = useGlobal((s) => s.activeConnectionId);   // ✅ select the right field  
+  const setActiveConnectionId = useGlobal((s) => s.setActiveConnectionId);  // ✅ add this
   const messagesList = useGlobal((s) => s.messagesList || []);   // ✅ shortcut maintained by store  
 
   // ✅ Select the count of messages for the active connection
@@ -730,29 +731,15 @@ export default function MessageScreen() {
   );
 
   // ✅ Option 2: initialize slice from global list if empty
+  // ❌ Remove slice init from global list entirely
+  // Let responseMessageList populate per-connection slices
   useEffect(() => {
     const state = useGlobal.getState();
-
-    console.log("[Message.jsx] slice init check:",
+    console.log("[Message.jsx] slice check:",
       "connId:", activeConnectionId,
-      "global list length:", messagesList.length,
-      "slice length:", useGlobal.getState().messagesByConnection?.[activeConnectionId]?.length || 0);
+      "slice length:", state.messagesByConnection?.[activeConnectionId]?.length || 0);
+  }, [activeConnectionId]);
 
-    if (
-      activeConnectionId &&
-      (!state.messagesByConnection?.[activeConnectionId] ||
-        state.messagesByConnection[activeConnectionId].length === 0) &&
-      state.messagesList.length > 0
-    ) {
-      console.log("[Message.jsx] Initializing slice from global list for connId:", activeConnectionId);
-      useGlobal.setState({
-        messagesByConnection: {
-          ...state.messagesByConnection,
-          [activeConnectionId]: [...state.messagesList], // force copy
-        },
-      });
-    }
-  }, [activeConnectionId, messagesList.length]);
 
   useEffect(() => {
     console.log("[Debug - Inbound] socket object changed:", socket);
@@ -767,15 +754,10 @@ export default function MessageScreen() {
 
       if (friend?.username && connId) {
         // ✅ set each field independently if missing
-        if (!messagesUsername) {
-          setMessagesUsername(friend.username);
-        }
-        if (!messagesConnectionId) {
-          setMessagesConnectionId(connId);
-        }
-        if (!activeConnectionId) {
-          setActiveConnectionId(connId);
-        }
+        setMessagesUsername(friend.username);
+        setMessagesConnectionId(connId);
+        setActiveConnectionId(connId);
+
         console.log("[Message] Context initialized from route params:",
                     "username=", friend.username,
                     "connId=", connId);
@@ -796,16 +778,15 @@ export default function MessageScreen() {
 
     if (params?.id) {
       const connId = Number(params.id);
-      console.log("[Message.jsx] Forcing activeConnectionId/messagesConnectionId to:", connId);
       useGlobal.setState((state) => ({
         ...state,
         activeConnectionId: connId,
-        messagesConnectionId: connId,
-        messagesUsername: params?.friend?.username || state.messagesUsername,
-        activeFriend: params?.friend ? JSON.parse(params.friend) : state.activeFriend,
+        messagesConnectionId: connId,   // ✅ keep in sync
+        messagesUsername: params?.friend?.username ?? state.messagesUsername,
       }));
+      console.log("[Message.jsx] Synced activeConnectionId/messagesConnectionId:", connId);
     }
-  }, [params?.id, params?.friend]);
+  }, [params?.id]);
 
 
   // ✅ Helper function
@@ -1340,22 +1321,22 @@ export default function MessageScreen() {
             useGlobal.getState().messagesByConnection?.[activeConnectionId]?.length || 0);
 
 
-  // Effect 1: request messages only once per connection/socket change
+  // Effect 1: request messages once socket is ready and connId is set
   useEffect(() => {
     console.log("[Effect1] socketReady:", socketReady,
                 "messagesConnectionId:", messagesConnectionId,
                 "alreadyRequested:", requestedRef.current.has(messagesConnectionId),
                 "existingMessagesCount:", existingMessagesCount);
 
+    // Only run when socketReady flips true and we have a connId
     if (!socketReady || !socket || !messagesConnectionId) return;
     if (requestedRef.current.has(messagesConnectionId)) return;
 
-    if (existingMessagesCount === 0) {
-      console.log("[Effect1] Requesting messages for connId:", messagesConnectionId);
-      messageListFn(messagesConnectionId);
-      requestedRef.current.add(messagesConnectionId);
-    }
-  }, [socketReady, messagesConnectionId, existingMessagesCount]);
+    console.log("[Effect1] Requesting messages for connId:", messagesConnectionId);
+    messageListFn(messagesConnectionId, 0);
+    requestedRef.current.add(messagesConnectionId);
+  }, [socketReady, messagesConnectionId]);   // ✅ removed existingMessagesCount
+
 
   // Effect 2: mark messages as seen when chatMessages changes
   useEffect(() => {
@@ -1371,7 +1352,7 @@ export default function MessageScreen() {
     unseen.forEach(msg => {
       console.log("[Effect2] Marking message as seen:", msg.id);
       socket.send(JSON.stringify({
-        source: "message.seen",
+        type: "message.seen",
         connectionId: activeConnectionId,
         messageId: msg.id
       }));
@@ -1636,7 +1617,7 @@ export default function MessageScreen() {
               ref={flatListRef}
               sections={groupedSections}
               inverted
-              keyExtractor={(item) => String(item.id)}
+              keyExtractor={(item, index) => `${item.id}-${index}`}   // ✅ ensure uniqueness
               renderItem={({ item }) => (
                 <MessageBubble
                   message={item}

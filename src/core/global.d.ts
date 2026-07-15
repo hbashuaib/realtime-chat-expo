@@ -15,6 +15,11 @@ export interface GlobalState {
 
   authenticated: boolean;
   user: Record<string, any>;
+
+  // ✅ Add tokens to global state
+  tokens: { access?: string; refresh?: string } | null;
+  setTokens: (tokens: { access?: string; refresh?: string } | null) => void;
+  
   login: (credentials: any, user: any, tokens: any) => void;
   logout: () => void;
 

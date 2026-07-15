@@ -21,10 +21,25 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+from chat.views import SignInView, SignUpView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('chat/', include('chat.urls'))
+    
+    # ✅ Global JWT endpoints
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # ✅ Global auth endpoints
+    path('api/signin/', SignInView.as_view(), name='signin'),
+    path('api/signup/', SignUpView.as_view(), name='signup'),
+    
+    # ✅ Chat routes
+    path('api/chat/', include('chat.urls'))
 ]
 
 if settings.DEBUG:
